@@ -6,7 +6,7 @@ import { Message } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, User, Bot, Loader2, Book } from "lucide-react";
+import { Send, User, Bot, Loader2, Trash2, Command } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ragQueryResponseGeneration } from "@/ai/flows/rag-query-response-generation";
 
@@ -15,7 +15,7 @@ export function ChatWindow() {
     {
       id: "1",
       role: "assistant",
-      content: "Hello! I'm your AI Knowledge Assistant. Ask me anything about your uploaded documents.",
+      content: "SESSION INITIALIZED. I am synchronized with your document index. Awaiting query input.",
       timestamp: new Date(),
     }
   ]);
@@ -44,9 +44,6 @@ export function ChatWindow() {
     setIsLoading(true);
 
     try {
-      // Simulate RAG Flow
-      // In a real app, we'd fetch chunks from pgvector first
-      // But we simulate retrieval for this UI
       const mockRetrievedContext = [
         "Knowledge base content snippet A about document structure...",
         "Policy details regarding document security and processing...",
@@ -70,7 +67,7 @@ export function ChatWindow() {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "I encountered an error while processing your request. Please try again.",
+        content: "ERROR: System interrupted. Failed to retrieve semantic match.",
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -80,45 +77,47 @@ export function ChatWindow() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border rounded-xl overflow-hidden shadow-sm">
-      <div className="p-4 border-b bg-muted/30 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-primary" />
-          <h2 className="font-headline font-bold text-sm">Knowledge Chat</h2>
+    <div className="flex flex-col h-full bg-card border-4 border-foreground shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+      <div className="p-6 border-b-4 border-foreground bg-primary flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-foreground flex items-center justify-center">
+            <Command className="h-5 w-5 text-background" />
+          </div>
+          <h2 className="font-headline font-black text-xl uppercase tracking-tighter">Neural Interface</h2>
         </div>
-        <Button variant="ghost" size="sm" className="h-8 text-xs gap-2">
-          <Book className="h-3 w-3" /> Clear History
+        <Button variant="ghost" size="sm" className="h-10 border-2 border-foreground font-bold uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background" onClick={() => setMessages([messages[0]])}>
+          <Trash2 className="h-4 w-4" /> Purge Logs
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="space-y-4 pb-4">
+      <ScrollArea className="flex-1 p-8 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:24px_24px] opacity-100" ref={scrollRef}>
+        <div className="space-y-8 pb-4">
           {messages.map((msg) => (
             <div
               key={msg.id}
               className={cn(
-                "flex gap-3 max-w-[85%]",
+                "flex gap-4 max-w-[90%]",
                 msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
               )}
             >
               <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
-                msg.role === "user" ? "bg-accent text-accent-foreground border-accent" : "bg-primary text-primary-foreground border-primary"
+                "w-12 h-12 flex items-center justify-center shrink-0 border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
+                msg.role === "user" ? "bg-accent text-accent-foreground" : "bg-primary text-foreground"
               )}>
-                {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                {msg.role === "user" ? <User className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className={cn(
-                  "p-3 rounded-2xl text-sm leading-relaxed",
-                  msg.role === "user" ? "bg-accent text-accent-foreground rounded-tr-none" : "bg-muted rounded-tl-none text-foreground"
+                  "p-5 border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-sm font-medium leading-relaxed",
+                  msg.role === "user" ? "bg-card" : "bg-muted/80"
                 )}>
                   {msg.content}
                 </div>
                 {msg.sources && msg.sources.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground mr-1">Sources:</span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="font-mono text-[9px] uppercase font-black tracking-widest bg-foreground text-background px-2 py-0.5">Verified Sources:</span>
                     {msg.sources.map((s, i) => (
-                      <span key={i} className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary-foreground border border-primary/20 rounded font-medium">
+                      <span key={i} className="font-mono text-[9px] font-black uppercase tracking-tighter border-2 border-foreground px-2 py-0.5 bg-primary/20">
                         {s}
                       </span>
                     ))}
@@ -128,40 +127,45 @@ export function ChatWindow() {
             </div>
           ))}
           {isLoading && (
-            <div className="flex gap-3 max-w-[85%] mr-auto">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border bg-primary text-primary-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex gap-4 max-w-[85%] mr-auto">
+              <div className="w-12 h-12 flex items-center justify-center shrink-0 border-2 border-foreground bg-primary text-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <Loader2 className="h-6 w-6 animate-spin" />
               </div>
-              <div className="bg-muted p-3 rounded-2xl rounded-tl-none text-sm animate-pulse">
-                Thinking...
+              <div className="bg-muted p-5 border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-sm font-black uppercase tracking-widest animate-pulse">
+                RETRIEVING_DATA...
               </div>
             </div>
           )}
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t bg-background">
+      <div className="p-6 border-t-4 border-foreground bg-card">
         <form
-          className="flex items-center gap-2"
+          className="flex items-center gap-4"
           onSubmit={(e) => {
             e.preventDefault();
             handleSend();
           }}
         >
           <Input
-            placeholder="Ask anything about your documents..."
+            placeholder="INJECT QUERY HERE..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isLoading}
-            className="flex-1 focus-visible:ring-primary"
+            className="flex-1 h-16 border-2 border-foreground rounded-none px-6 font-bold uppercase tracking-tighter text-lg focus-visible:ring-primary shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)]"
           />
-          <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="bg-primary hover:bg-primary/90">
-            <Send className="h-4 w-4" />
+          <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="h-16 w-16 bg-primary text-foreground border-4 border-foreground rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
+            <Send className="h-8 w-8" />
           </Button>
         </form>
-        <p className="text-[10px] text-center text-muted-foreground mt-2">
-          AI Knowledge Assistant answers strictly based on your provided document context.
-        </p>
+        <div className="flex justify-between items-center mt-4">
+          <p className="font-mono text-[9px] font-black uppercase tracking-[0.3em] opacity-40">
+            System status: nominal // encryption: active
+          </p>
+          <p className="font-mono text-[9px] font-black uppercase tracking-[0.3em] opacity-40">
+            v.4.0.1 Stable
+          </p>
+        </div>
       </div>
     </div>
   );

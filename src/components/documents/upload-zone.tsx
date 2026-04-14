@@ -3,7 +3,7 @@
 
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload, File, X, CheckCircle2, Loader2 } from "lucide-react";
+import { Upload, File, X, CheckCircle2, Loader2, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -35,15 +35,14 @@ export function UploadZone() {
     if (files.length === 0) return;
     setUploading(true);
     
-    // Simulate upload progress
     for (let i = 0; i <= 100; i += 10) {
       setProgress(i);
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     toast({
-      title: "Upload Complete",
-      description: `Successfully uploaded ${files.length} documents. They are now being indexed.`,
+      title: "INJECTION SUCCESSFUL",
+      description: `${files.length} UNIT(S) INDEXED IN THE VAULT.`,
     });
 
     setUploading(false);
@@ -52,57 +51,64 @@ export function UploadZone() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div
         {...getRootProps()}
         className={cn(
-          "border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center transition-colors cursor-pointer",
-          isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-primary/50"
+          "border-4 border-dashed rounded-none p-16 flex flex-col items-center justify-center transition-all cursor-pointer relative",
+          isDragActive ? "border-primary bg-primary/5 shadow-[8px_8px_0px_0px_rgba(251,191,36,0.2)]" : "border-foreground/20 hover:border-primary/50 hover:bg-muted/50"
         )}
       >
-        <input {...getInputProps()} />
-        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-          <Upload className="h-8 w-8 text-primary" />
+        <div className="absolute top-4 left-4 flex items-center gap-2 font-mono text-[8px] font-black uppercase tracking-[0.3em] opacity-40">
+          <Fingerprint className="h-3 w-3" /> Secure Intake
         </div>
-        <h3 className="font-headline font-bold text-lg text-center">Upload Documents</h3>
-        <p className="text-sm text-muted-foreground mt-1 text-center max-w-xs mb-4">
-          Drag and drop your PDF, TXT or DOCX files here to index them for AI queries.
+        <input {...getInputProps()} />
+        <div className="w-20 h-20 bg-primary/10 border-2 border-foreground flex items-center justify-center mb-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <Upload className="h-10 w-10 text-foreground" />
+        </div>
+        <h3 className="font-headline font-black text-2xl uppercase tracking-tighter text-center">Protocol: Data Ingestion</h3>
+        <p className="text-sm font-bold text-muted-foreground mt-2 text-center max-w-sm mb-8 uppercase tracking-tight">
+          Drop PDF, TXT or DOCX units for neural vectorization.
         </p>
-        <Button variant="outline" type="button" className="pointer-events-none">
-          Select Files from Computer
+        <Button variant="outline" type="button" className="h-12 px-8 border-2 border-foreground rounded-none font-black uppercase tracking-tighter hover:bg-foreground hover:text-background transition-all">
+          Browse Filesystem
         </Button>
       </div>
 
       {files.length > 0 && (
-        <div className="space-y-2">
-          {files.map(file => (
-            <div key={file.name} className="flex items-center justify-between p-3 bg-card border rounded-lg">
-              <div className="flex items-center gap-3">
-                <File className="h-5 w-5 text-primary" />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium truncate max-w-[200px] md:max-w-md">{file.name}</span>
-                  <span className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+        <div className="space-y-4">
+          <div className="grid gap-2">
+            {files.map(file => (
+              <div key={file.name} className="flex items-center justify-between p-4 bg-card border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 border border-foreground bg-muted">
+                    <File className="h-5 w-5 text-foreground" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-black uppercase tracking-tighter truncate max-w-[200px] md:max-w-md">{file.name}</span>
+                    <span className="font-mono text-[9px] font-bold uppercase tracking-widest opacity-40">{(file.size / 1024 / 1024).toFixed(2)} MB // READY</span>
+                  </div>
                 </div>
+                {!uploading && (
+                  <Button variant="ghost" size="icon" className="hover:bg-accent hover:text-accent-foreground border-2 border-transparent hover:border-foreground" onClick={() => removeFile(file.name)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-              {!uploading && (
-                <Button variant="ghost" size="icon" onClick={() => removeFile(file.name)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
 
           {uploading ? (
-            <div className="space-y-2 pt-2">
-              <div className="flex justify-between text-xs">
-                <span>Indexing documents...</span>
-                <span>{progress}%</span>
+            <div className="space-y-4 p-6 border-4 border-foreground bg-muted">
+              <div className="flex justify-between items-center font-mono text-xs font-black uppercase tracking-widest">
+                <span>VECTORIZING_DATA...</span>
+                <span className="text-primary">{progress}%</span>
               </div>
-              <Progress value={progress} className="h-2" />
+              <Progress value={progress} className="h-4 rounded-none border-2 border-foreground bg-background" />
             </div>
           ) : (
-            <Button className="w-full mt-2 font-bold" onClick={handleUpload}>
-              Process {files.length} {files.length === 1 ? 'Document' : 'Documents'}
+            <Button className="w-full h-16 bg-primary text-primary-foreground border-4 border-foreground rounded-none font-black uppercase text-xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all" onClick={handleUpload}>
+              Initialize Injection ({files.length})
             </Button>
           )}
         </div>

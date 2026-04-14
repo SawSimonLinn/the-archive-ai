@@ -21,10 +21,10 @@
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 88%;
+    --border: 0 0% 10%;
     --input: 0 0% 88%;
     --ring: 46 73% 52%;
-    --radius: 0.75rem;
+    --radius: 0px;
     --sidebar-background: 0 0% 10%;
     --sidebar-foreground: 0 0% 90%;
     --sidebar-primary: 46 73% 52%;
@@ -36,11 +36,11 @@
   }
 
   .dark {
-    --background: 0 0% 10%;
+    --background: 0 0% 5%;
     --foreground: 0 0% 98%;
-    --card: 0 0% 12%;
+    --card: 0 0% 8%;
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 12%;
+    --popover: 0 0% 8%;
     --popover-foreground: 0 0% 98%;
     --primary: 46 73% 52%;
     --primary-foreground: 0 0% 10%;
@@ -52,7 +52,7 @@
     --accent-foreground: 0 0% 100%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 15%;
+    --border: 0 0% 90%;
     --input: 0 0% 15%;
     --ring: 46 73% 52%;
   }
@@ -60,12 +60,20 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-foreground/20;
   }
   body {
-    @apply bg-background text-foreground font-body;
+    @apply bg-background text-foreground font-body antialiased;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-headline tracking-tight;
+    @apply font-headline tracking-tighter uppercase;
   }
+}
+
+.brutalist-card {
+  @apply border-2 border-foreground bg-card shadow-[4px_4px_0px_0px_rgba(0,0,0,1)];
+}
+
+.brutalist-button {
+  @apply rounded-none border-2 border-foreground font-black uppercase tracking-tighter transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-0 active:translate-y-0 active:shadow-none;
 }
