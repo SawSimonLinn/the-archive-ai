@@ -1,16 +1,28 @@
 
 "use client"
 
-import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarInset, SidebarGroup, SidebarGroupLabel, SidebarGroupContent } from "@/components/ui/sidebar";
-import { Archive, MessageSquare, Files, Settings, LogOut, LayoutDashboard, Fingerprint } from "lucide-react";
+import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarInset, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
+import { Archive, MessageSquare, Files, Settings, LogOut, LayoutDashboard, Fingerprint, ChevronRight, FileText } from "lucide-react";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useState } from "react";
+
+const mockDocs = [
+  { id: "1", name: "PROJECT_PROPOSAL_FINAL.PDF" },
+  { id: "2", name: "SYSTEM_SECURITY_POLICY.DOCX" },
+  { id: "3", name: "REDACTED_MEETING_NOTES.TXT" },
+  { id: "4", name: "RESEARCH_DATA_V2.PDF" },
+  { id: "5", name: "NETWORK_LOG_EXCERPT.TXT" },
+];
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [docsOpen, setDocsOpen] = useState(false);
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-background overflow-hidden font-body">
@@ -44,14 +56,39 @@ export default function DashboardLayout({
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild className="h-12 border-2 border-transparent hover:border-primary hover:bg-primary/10 transition-all rounded-none font-bold uppercase tracking-tighter text-background">
-                      <Link href="/dashboard/documents">
-                        <Files className="h-5 w-5" />
-                        <span>My Documents</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <Collapsible open={docsOpen} onOpenChange={setDocsOpen} asChild>
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton className="h-12 border-2 border-transparent hover:border-primary hover:bg-primary/10 transition-all rounded-none font-bold uppercase tracking-tighter text-background w-full">
+                          <Files className="h-5 w-5 shrink-0" />
+                          <span className="flex-1 text-left">My Documents</span>
+                          <ChevronRight className={`h-4 w-4 shrink-0 transition-transform duration-200 ${docsOpen ? "rotate-90" : ""}`} />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub className="ml-4 mt-1 border-l-2 border-background/20 pl-3 space-y-1">
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild className="h-10 rounded-none font-bold uppercase tracking-tighter text-background/70 hover:text-background hover:bg-primary/10 text-xs">
+                              <Link href="/dashboard/documents">
+                                <FileText className="h-4 w-4 shrink-0" />
+                                <span>All Documents</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          {mockDocs.map((doc) => (
+                            <SidebarMenuSubItem key={doc.id}>
+                              <SidebarMenuSubButton asChild className="h-10 rounded-none font-bold uppercase tracking-tighter text-background/70 hover:text-background hover:bg-primary/10 text-xs">
+                                <Link href={`/dashboard/chat?docId=${doc.id}`}>
+                                  <FileText className="h-4 w-4 shrink-0 opacity-60" />
+                                  <span className="truncate">{doc.name}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

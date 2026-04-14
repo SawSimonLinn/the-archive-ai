@@ -2,7 +2,6 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react";
-import { Message } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,6 +24,48 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ragQueryResponseGeneration } from "@/ai/flows/rag-query-response-generation";
+import { Message } from "@/lib/types";
+
+const MOCK_DOC_HISTORY: Record<string, { name: string; messages: Message[] }> = {
+  "1": {
+    name: "PROJECT_PROPOSAL_FINAL.PDF",
+    messages: [
+      { id: "h1-1", role: "assistant", content: "I've analyzed PROJECT_PROPOSAL_FINAL.PDF. You can now ask questions about its content.", timestamp: new Date("2024-03-20T14:31:00") },
+      { id: "h1-2", role: "user", content: "What are the 3 main takeaways from this file?", timestamp: new Date("2024-03-20T14:32:00") },
+      { id: "h1-3", role: "assistant", content: "The three main takeaways are: (1) The project targets a 40% reduction in infrastructure costs, (2) Phase 1 delivery is scheduled for Q3, and (3) A cross-functional team of 12 is required for execution.", timestamp: new Date("2024-03-20T14:32:15"), sources: ["PROJECT_PROPOSAL_FINAL.PDF"] },
+    ],
+  },
+  "2": {
+    name: "SYSTEM_SECURITY_POLICY.DOCX",
+    messages: [
+      { id: "h2-1", role: "assistant", content: "I've analyzed SYSTEM_SECURITY_POLICY.DOCX. You can now ask questions about its content.", timestamp: new Date("2024-03-21T09:16:00") },
+      { id: "h2-2", role: "user", content: "Does this document discuss security or privacy protocols?", timestamp: new Date("2024-03-21T09:17:00") },
+      { id: "h2-3", role: "assistant", content: "Yes. The document mandates AES-256 encryption for all data at rest, requires MFA for system access, and outlines a 72-hour breach notification window per GDPR compliance requirements.", timestamp: new Date("2024-03-21T09:17:20"), sources: ["SYSTEM_SECURITY_POLICY.DOCX"] },
+    ],
+  },
+  "3": {
+    name: "REDACTED_MEETING_NOTES.TXT",
+    messages: [
+      { id: "h3-1", role: "assistant", content: "I've analyzed REDACTED_MEETING_NOTES.TXT. You can now ask questions about its content.", timestamp: new Date("2024-03-22T16:46:00") },
+    ],
+  },
+  "4": {
+    name: "RESEARCH_DATA_V2.PDF",
+    messages: [
+      { id: "h4-1", role: "assistant", content: "I've analyzed RESEARCH_DATA_V2.PDF. You can now ask questions about its content.", timestamp: new Date("2024-03-23T11:21:00") },
+      { id: "h4-2", role: "user", content: "Can you summarize the technical requirements mentioned in this file?", timestamp: new Date("2024-03-23T11:22:00") },
+      { id: "h4-3", role: "assistant", content: "The technical requirements include: a minimum of 16GB RAM per node, a distributed storage layer with 99.99% uptime SLA, and support for parallel query execution across 8 processing cores.", timestamp: new Date("2024-03-23T11:22:30"), sources: ["RESEARCH_DATA_V2.PDF"] },
+      { id: "h4-4", role: "user", content: "What datasets were used?", timestamp: new Date("2024-03-23T11:24:00") },
+      { id: "h4-5", role: "assistant", content: "The study references three primary datasets: the CERN Open Data portal, a proprietary telemetry feed from 2023, and a synthetic benchmark set generated internally for stress testing.", timestamp: new Date("2024-03-23T11:24:18"), sources: ["RESEARCH_DATA_V2.PDF"] },
+    ],
+  },
+  "5": {
+    name: "NETWORK_LOG_EXCERPT.TXT",
+    messages: [
+      { id: "h5-1", role: "assistant", content: "I've analyzed NETWORK_LOG_EXCERPT.TXT. You can now ask questions about its content.", timestamp: new Date("2024-03-24T08:06:00") },
+    ],
+  },
+};
 import {
   Dialog,
   DialogContent,
@@ -35,13 +76,14 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { UploadZone } from "@/components/documents/upload-zone";
 
-export function ChatWindow() {
+export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [activeFileUrl, setActiveFileUrl] = useState<string | null>(null);
+  const [activeFileContent, setActiveFileContent] = useState<string | null>(null);
   const [showTLDR, setShowTLDR] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
@@ -60,14 +102,37 @@ export function ChatWindow() {
     };
   }, [activeFileUrl]);
 
-  const handleUploadSuccess = (files: File[]) => {
+  // Load history for a doc selected from the sidebar
+  useEffect(() => {
+    if (!initialDocId) return;
+    const entry = MOCK_DOC_HISTORY[initialDocId];
+    if (!entry) return;
+    setActiveFile(entry.name);
+    setActiveFileUrl(null);
+    setActiveFileContent(null);
+    setMessages(entry.messages);
+    setSuggestedQuestions([]);
+  }, [initialDocId]);
+
+  const handleUploadSuccess = async (files: File[]) => {
     const file = files[0];
     const fileName = file.name;
     const url = URL.createObjectURL(file);
-    
+
     setActiveFile(fileName);
     setActiveFileUrl(url);
     setShowTLDR(true);
+
+    // Extract text content from the file
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/extract-text', { method: 'POST', body: formData });
+      const data = await res.json();
+      setActiveFileContent(data.text ?? null);
+    } catch {
+      setActiveFileContent(null);
+    }
     
     setSuggestedQuestions([
       `What are the 3 main takeaways from ${fileName}?`,
@@ -126,7 +191,9 @@ export function ChatWindow() {
     try {
       const response = await ragQueryResponseGeneration({
         userQuery: query,
-        retrievedContext: [`Context extracted from ${activeFile}...`],
+        retrievedContext: activeFileContent
+          ? [activeFileContent]
+          : [`Context extracted from ${activeFile}...`],
       });
 
       const aiMsg: Message = {
@@ -203,6 +270,7 @@ export function ChatWindow() {
               setMessages([]);
               setActiveFile(null);
               setActiveFileUrl(null);
+              setActiveFileContent(null);
               setSuggestedQuestions([]);
             }}
           >
