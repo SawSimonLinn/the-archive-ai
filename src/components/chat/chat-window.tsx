@@ -6,21 +6,43 @@ import { Message } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, User, Bot, Loader2, Trash2, Command } from "lucide-react";
+import { 
+  Send, 
+  User, 
+  Bot, 
+  Loader2, 
+  Trash2, 
+  Command, 
+  Copy, 
+  Download, 
+  FileText, 
+  Check,
+  Zap
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ragQueryResponseGeneration } from "@/ai/flows/rag-query-response-generation";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
 
 export function ChatWindow() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       role: "assistant",
-      content: "Hello! I'm ready to help you with your documents. Ask me anything.",
+      content: "Hello! I'm ready to help you with your documents. Ask me anything or click 'Get TL;DR' for a quick summary.",
       timestamp: new Date(),
     }
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,6 +50,32 @@ export function ChatWindow() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    toast({
+      title: "Copied!",
+      description: "Message copied to clipboard.",
+    });
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleDownloadSummary = () => {
+    const summaryText = "TL;DR Summary of your Archive:\n\nYour library currently contains technical proposals and security policies. The key focus is on industrial-grade document encryption and retrieval efficiency. (System Mock Summary)";
+    const element = document.createElement("a");
+    const file = new Blob([summaryText], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = "archive_summary.txt";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    
+    toast({
+      title: "Downloaded",
+      description: "Summary saved as archive_summary.txt",
+    });
+  };
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -78,16 +126,59 @@ export function ChatWindow() {
 
   return (
     <div className="flex flex-col h-full bg-card border-4 border-foreground shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-      <div className="p-6 border-b-4 border-foreground bg-primary flex items-center justify-between">
+      <div className="p-6 border-b-4 border-foreground bg-primary flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-foreground flex items-center justify-center">
             <Command className="h-5 w-5 text-background" />
           </div>
           <h2 className="font-headline font-black text-xl uppercase tracking-tighter">Chat with AI</h2>
         </div>
-        <Button variant="ghost" size="sm" className="h-10 border-2 border-foreground font-bold uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background" onClick={() => setMessages([messages[0]])}>
-          <Trash2 className="h-4 w-4" /> Clear Chat
-        </Button>
+        
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex-1 sm:flex-none h-10 border-2 border-foreground bg-background font-black uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background transition-all">
+                <Zap className="h-4 w-4 text-primary" /> Get TL;DR
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="border-4 border-foreground rounded-none shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-w-md bg-card p-0 overflow-hidden">
+              <DialogHeader className="bg-primary p-6 border-b-4 border-foreground">
+                <DialogTitle className="font-headline font-black text-2xl uppercase tracking-tighter">Archive Summary</DialogTitle>
+                <DialogDescription className="font-mono text-[10px] font-bold uppercase tracking-widest text-foreground/60">System generated short note</DialogDescription>
+              </DialogHeader>
+              <div className="p-8 space-y-6">
+                <div className="p-6 bg-muted border-2 border-foreground font-medium text-sm leading-relaxed">
+                  Your Archive contains a collection of technical blueprints and policy documents. The core theme is <span className="font-black underline decoration-primary decoration-4">Security Implementation</span> and <span className="font-black underline decoration-primary decoration-4">Retrieval Protocols</span>. 
+                  <br /><br />
+                  Key Takeaway: The system is currently optimized for rapid semantic search across encrypted nodes.
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Button 
+                    onClick={() => handleCopy("Your Archive contains a collection of technical blueprints...", "summary")} 
+                    className="h-14 bg-background text-foreground border-2 border-foreground rounded-none font-black uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background transition-all"
+                  >
+                    <Copy className="h-4 w-4" /> Copy TL;DR
+                  </Button>
+                  <Button 
+                    onClick={handleDownloadSummary}
+                    className="h-14 bg-primary text-foreground border-2 border-foreground rounded-none font-black uppercase tracking-tighter gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+                  >
+                    <Download className="h-4 w-4" /> Download
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="flex-1 sm:flex-none h-10 border-2 border-foreground font-bold uppercase tracking-tighter gap-2 hover:bg-destructive hover:text-destructive-foreground transition-all" 
+            onClick={() => setMessages([messages[0]])}
+          >
+            <Trash2 className="h-4 w-4" /> Clear
+          </Button>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 p-8 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:24px_24px] opacity-100" ref={scrollRef}>
@@ -106,12 +197,22 @@ export function ChatWindow() {
               )}>
                 {msg.role === "user" ? <User className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 flex-1 group relative">
                 <div className={cn(
-                  "p-5 border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-sm font-medium leading-relaxed",
+                  "p-5 border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-sm font-medium leading-relaxed relative",
                   msg.role === "user" ? "bg-card" : "bg-muted/80"
                 )}>
                   {msg.content}
+                  
+                  {msg.role === "assistant" && (
+                    <button 
+                      onClick={() => handleCopy(msg.content, msg.id)}
+                      className="absolute top-2 right-2 p-1.5 bg-background border-2 border-foreground opacity-0 group-hover:opacity-100 transition-all hover:bg-primary"
+                      title="Copy message"
+                    >
+                      {copiedId === msg.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    </button>
+                  )}
                 </div>
                 {msg.sources && msg.sources.length > 0 && (
                   <div className="flex flex-wrap gap-2">
