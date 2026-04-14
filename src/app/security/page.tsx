@@ -7,8 +7,8 @@ export default function SecurityPage() {
     <div className="flex flex-col min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
       <SiteHeader />
       
-      <main className="flex-1 container px-6 mx-auto py-24">
-        <div className="max-w-5xl space-y-20">
+      <main className="flex-1 container px-6 py-24">
+        <div className="max-w-5xl mx-auto space-y-20">
           <div className="space-y-6 border-l-8 border-primary pl-8">
             <div className="inline-flex items-center gap-3 bg-foreground text-background px-4 py-1 font-mono text-xs font-bold uppercase tracking-widest">
               <Lock className="h-4 w-4" /> Defense_Grade: High
