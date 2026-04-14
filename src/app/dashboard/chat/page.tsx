@@ -4,11 +4,16 @@
 import { ChatWindow } from "@/components/chat/chat-window";
 import { Search } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function ChatPage() {
+function ChatContent() {
   const searchParams = useSearchParams();
   const docId = searchParams.get("docId") ?? undefined;
 
+  return <ChatWindow initialDocId={docId} />;
+}
+
+export default function ChatPage() {
   return (
     <div className="h-[calc(100vh-140px)] flex flex-col max-w-5xl mx-auto">
       <div className="mb-6">
@@ -19,7 +24,9 @@ export default function ChatPage() {
       </div>
 
       <div className="flex-1 min-h-0">
-        <ChatWindow initialDocId={docId} />
+        <Suspense fallback={null}>
+          <ChatContent />
+        </Suspense>
       </div>
     </div>
   );
