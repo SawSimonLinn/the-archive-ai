@@ -64,10 +64,13 @@ export function UploadZone() {
         <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
           <Upload className="h-8 w-8 text-primary" />
         </div>
-        <h3 className="font-headline font-bold text-lg">Upload Documents</h3>
-        <p className="text-sm text-muted-foreground mt-1 text-center max-w-xs">
+        <h3 className="font-headline font-bold text-lg text-center">Upload Documents</h3>
+        <p className="text-sm text-muted-foreground mt-1 text-center max-w-xs mb-4">
           Drag and drop your PDF, TXT or DOCX files here to index them for AI queries.
         </p>
+        <Button variant="outline" type="button" className="pointer-events-none">
+          Select Files from Computer
+        </Button>
       </div>
 
       {files.length > 0 && (
@@ -99,7 +102,7 @@ export function UploadZone() {
             </div>
           ) : (
             <Button className="w-full mt-2 font-bold" onClick={handleUpload}>
-              Process Documents
+              Process {files.length} {files.length === 1 ? 'Document' : 'Documents'}
             </Button>
           )}
         </div>
