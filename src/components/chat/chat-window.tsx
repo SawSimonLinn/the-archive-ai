@@ -18,7 +18,8 @@ import {
   Check,
   Zap,
   Files,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ragQueryResponseGeneration } from "@/ai/flows/rag-query-response-generation";
@@ -39,6 +40,7 @@ export function ChatWindow() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [showTLDR, setShowTLDR] = useState(false);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,6 +53,14 @@ export function ChatWindow() {
     const fileName = files[0].name;
     setActiveFile(fileName);
     setShowTLDR(true);
+    
+    // Auto-generate 3 suggested questions based on document type/name
+    setSuggestedQuestions([
+      `What are the 3 main takeaways from ${fileName}?`,
+      `Can you summarize the technical requirements mentioned in this file?`,
+      `Does this document discuss security or privacy protocols?`
+    ]);
+
     setMessages([
       {
         id: "init",
@@ -82,13 +92,17 @@ export function ChatWindow() {
     document.body.removeChild(element);
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading || !activeFile) return;
+  const handleSend = async (overrideInput?: string) => {
+    const query = overrideInput || input;
+    if (!query.trim() || isLoading || !activeFile) return;
+
+    // Clear suggestions once a question is asked
+    setSuggestedQuestions([]);
 
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input,
+      content: query,
       timestamp: new Date(),
     };
 
@@ -98,7 +112,7 @@ export function ChatWindow() {
 
     try {
       const response = await ragQueryResponseGeneration({
-        userQuery: input,
+        userQuery: query,
         retrievedContext: [`Context extracted from ${activeFile}...`],
       });
 
@@ -167,6 +181,7 @@ export function ChatWindow() {
             onClick={() => {
               setMessages([]);
               setActiveFile(null);
+              setSuggestedQuestions([]);
             }}
           >
             <Trash2 className="h-4 w-4" /> New Session
@@ -257,6 +272,28 @@ export function ChatWindow() {
               </div>
             </div>
           ))}
+
+          {/* Suggested Questions */}
+          {!isLoading && messages.length === 1 && suggestedQuestions.length > 0 && (
+            <div className="space-y-4 pt-4 animate-in fade-in slide-in-from-bottom-4">
+              <div className="flex items-center gap-2 font-mono text-[10px] font-black uppercase tracking-[0.3em] opacity-40">
+                <Sparkles className="h-3 w-3 text-primary" /> Suggested Inquiries
+              </div>
+              <div className="grid gap-3">
+                {suggestedQuestions.map((q, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSend(q)}
+                    className="flex items-center gap-4 p-4 bg-card border-2 border-foreground text-left font-bold uppercase tracking-tighter text-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-primary hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+                  >
+                    <ArrowRight className="h-4 w-4 text-primary shrink-0" />
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {isLoading && (
             <div className="flex gap-6 max-w-[85%] mr-auto">
               <div className="w-12 h-12 flex items-center justify-center shrink-0 border-2 border-foreground bg-primary text-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
