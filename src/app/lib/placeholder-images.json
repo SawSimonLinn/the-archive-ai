@@ -1,0 +1,23 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-bg",
+      "description": "Abstract knowledge network representing AI and documents",
+      "imageUrl": "https://picsum.photos/seed/42/1200/800",
+      "imageHint": "neural network"
+    },
+    {
+      "id": "empty-docs",
+      "description": "Clean illustration of an empty file folder",
+      "imageUrl": "https://picsum.photos/seed/10/400/300",
+      "imageHint": "empty folder"
+    },
+    {
+      "id": "user-avatar",
+      "description": "A minimalist profile icon",
+      "imageUrl": "https://picsum.photos/seed/88/100/100",
+      "imageHint": "abstract portrait"
+    }
+  ]
+}
