@@ -19,7 +19,9 @@ import {
   Zap,
   Files,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Eye,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ragQueryResponseGeneration } from "@/ai/flows/rag-query-response-generation";
@@ -39,7 +41,9 @@ export function ChatWindow() {
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [activeFileUrl, setActiveFileUrl] = useState<string | null>(null);
   const [showTLDR, setShowTLDR] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -49,12 +53,22 @@ export function ChatWindow() {
     }
   }, [messages, isLoading]);
 
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (activeFileUrl) URL.revokeObjectURL(activeFileUrl);
+    };
+  }, [activeFileUrl]);
+
   const handleUploadSuccess = (files: File[]) => {
-    const fileName = files[0].name;
+    const file = files[0];
+    const fileName = file.name;
+    const url = URL.createObjectURL(file);
+    
     setActiveFile(fileName);
+    setActiveFileUrl(url);
     setShowTLDR(true);
     
-    // Auto-generate 3 suggested questions based on document type/name
     setSuggestedQuestions([
       `What are the 3 main takeaways from ${fileName}?`,
       `Can you summarize the technical requirements mentioned in this file?`,
@@ -96,7 +110,6 @@ export function ChatWindow() {
     const query = overrideInput || input;
     if (!query.trim() || isLoading || !activeFile) return;
 
-    // Clear suggestions once a question is asked
     setSuggestedQuestions([]);
 
     const userMsg: Message = {
@@ -154,7 +167,7 @@ export function ChatWindow() {
   return (
     <div className="flex flex-col h-full bg-card border-4 border-foreground shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
       {/* Header */}
-      <div className="p-6 border-b-4 border-foreground bg-primary flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="p-6 border-b-4 border-foreground bg-primary flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-foreground flex items-center justify-center">
             <Command className="h-5 w-5 text-background" />
@@ -165,13 +178,21 @@ export function ChatWindow() {
           </div>
         </div>
         
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <Button 
+            onClick={() => setShowPreview(true)}
+            variant="outline" 
+            className="flex-1 sm:flex-none h-10 border-2 border-foreground bg-background font-black uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background transition-all"
+          >
+            <Eye className="h-4 w-4" /> View Document
+          </Button>
+
           <Button 
             onClick={() => setShowTLDR(true)}
             variant="outline" 
             className="flex-1 sm:flex-none h-10 border-2 border-foreground bg-background font-black uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background transition-all"
           >
-            <Zap className="h-4 w-4 text-primary" /> Show Summary
+            <Zap className="h-4 w-4 text-primary" /> Get Summary
           </Button>
 
           <Button 
@@ -181,13 +202,48 @@ export function ChatWindow() {
             onClick={() => {
               setMessages([]);
               setActiveFile(null);
+              setActiveFileUrl(null);
               setSuggestedQuestions([]);
             }}
           >
-            <Trash2 className="h-4 w-4" /> New Session
+            <Trash2 className="h-4 w-4" /> Reset
           </Button>
         </div>
       </div>
+
+      {/* Preview Modal */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="border-4 border-foreground rounded-none shadow-[24px_24px_0px_0px_rgba(0,0,0,1)] max-w-5xl h-[90vh] bg-card p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="bg-foreground text-background p-6 border-b-4 border-foreground flex flex-row items-center justify-between shrink-0">
+            <div className="space-y-1">
+              <DialogTitle className="font-headline font-black text-2xl uppercase tracking-tighter">Document Preview</DialogTitle>
+              <DialogDescription className="font-mono text-[8px] font-bold uppercase tracking-[0.4em] text-background/60 leading-none">Source: {activeFile}</DialogDescription>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => setShowPreview(false)} className="text-background hover:bg-primary hover:text-foreground">
+              <X className="h-6 w-6" />
+            </Button>
+          </DialogHeader>
+          <div className="flex-1 bg-muted/30 p-4">
+            {activeFileUrl ? (
+              <iframe 
+                src={activeFileUrl} 
+                className="w-full h-full border-4 border-foreground bg-white"
+                title="Document Preview"
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-center p-12 space-y-4">
+                <Files className="h-16 w-16 opacity-20" />
+                <p className="font-headline font-black uppercase text-xl">Preview Unavailable</p>
+                <p className="font-mono text-[10px] uppercase tracking-widest opacity-60">The document could not be loaded into the viewer.</p>
+              </div>
+            )}
+          </div>
+          <div className="p-4 border-t-4 border-foreground bg-muted flex justify-between items-center font-mono text-[10px] font-black uppercase tracking-widest">
+            <span>Security: AES-256 Vaulted</span>
+            <Button onClick={() => setShowPreview(false)} className="bg-foreground text-background border-2 border-foreground rounded-none hover:bg-primary hover:text-foreground transition-all">Close Viewer</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* TL;DR Modal */}
       <Dialog open={showTLDR} onOpenChange={setShowTLDR}>
