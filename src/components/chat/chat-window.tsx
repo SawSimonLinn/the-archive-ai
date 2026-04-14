@@ -15,7 +15,7 @@ export function ChatWindow() {
     {
       id: "1",
       role: "assistant",
-      content: "SESSION INITIALIZED. I am synchronized with your document index. Awaiting query input.",
+      content: "Hello! I'm ready to help you with your documents. Ask me anything.",
       timestamp: new Date(),
     }
   ]);
@@ -67,7 +67,7 @@ export function ChatWindow() {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "ERROR: System interrupted. Failed to retrieve semantic match.",
+        content: "Sorry, I had trouble answering that. Please try again.",
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -83,10 +83,10 @@ export function ChatWindow() {
           <div className="w-8 h-8 bg-foreground flex items-center justify-center">
             <Command className="h-5 w-5 text-background" />
           </div>
-          <h2 className="font-headline font-black text-xl uppercase tracking-tighter">Neural Interface</h2>
+          <h2 className="font-headline font-black text-xl uppercase tracking-tighter">Chat with AI</h2>
         </div>
         <Button variant="ghost" size="sm" className="h-10 border-2 border-foreground font-bold uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background" onClick={() => setMessages([messages[0]])}>
-          <Trash2 className="h-4 w-4" /> Purge Logs
+          <Trash2 className="h-4 w-4" /> Clear Chat
         </Button>
       </div>
 
@@ -115,7 +115,7 @@ export function ChatWindow() {
                 </div>
                 {msg.sources && msg.sources.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    <span className="font-mono text-[9px] uppercase font-black tracking-widest bg-foreground text-background px-2 py-0.5">Verified Sources:</span>
+                    <span className="font-mono text-[9px] uppercase font-black tracking-widest bg-foreground text-background px-2 py-0.5">Found in:</span>
                     {msg.sources.map((s, i) => (
                       <span key={i} className="font-mono text-[9px] font-black uppercase tracking-tighter border-2 border-foreground px-2 py-0.5 bg-primary/20">
                         {s}
@@ -132,7 +132,7 @@ export function ChatWindow() {
                 <Loader2 className="h-6 w-6 animate-spin" />
               </div>
               <div className="bg-muted p-5 border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-sm font-black uppercase tracking-widest animate-pulse">
-                RETRIEVING_DATA...
+                AI is thinking...
               </div>
             </div>
           )}
@@ -148,7 +148,7 @@ export function ChatWindow() {
           }}
         >
           <Input
-            placeholder="INJECT QUERY HERE..."
+            placeholder="Ask a question..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isLoading}
@@ -160,7 +160,7 @@ export function ChatWindow() {
         </form>
         <div className="flex justify-between items-center mt-4">
           <p className="font-mono text-[9px] font-black uppercase tracking-[0.3em] opacity-40">
-            System status: nominal // encryption: active
+            Secure & Private Chat
           </p>
           <p className="font-mono text-[9px] font-black uppercase tracking-[0.3em] opacity-40">
             v.4.0.1 Stable

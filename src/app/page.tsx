@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -43,33 +44,33 @@ export default function Home() {
             <div className="grid gap-12 lg:gap-0 lg:grid-cols-12 items-end">
               <div className="lg:col-span-8 space-y-8">
                 <div className="inline-flex items-center gap-3 bg-primary text-primary-foreground px-4 py-1 font-mono text-[10px] sm:text-xs font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                  <Fingerprint className="h-4 w-4" /> System v.4.0.1 Stable
+                  <Fingerprint className="h-4 w-4" /> Secure & Simple
                 </div>
                 <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-[10rem] font-headline font-black leading-[0.85] tracking-[-0.07em] uppercase break-words">
-                  Quiet <br />
-                  Intelligence<span className="text-primary">.</span>
+                  Smart <br />
+                  Documents<span className="text-primary">.</span>
                 </h1>
                 <p className="max-w-xl text-lg sm:text-xl lg:text-2xl font-medium leading-tight text-muted-foreground border-l-4 border-foreground pl-6 italic">
-                  Most AI is loud. Ours is observant. Turn your chaotic document stacks into a living, breathing knowledge ecosystem.
+                  Most AI is confusing. Ours is simple. Turn your unread PDFs into a smart, searchable library you can talk to.
                 </p>
               </div>
               
               <div className="lg:col-span-4 flex flex-col gap-6">
                 <div className="bg-foreground text-background p-6 sm:p-8 space-y-6 shadow-[12px_12px_0px_0px_rgba(var(--primary),0.3)] border-2 border-foreground">
                   <div className="space-y-2">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.3em] opacity-50">Current Status</p>
-                    <p className="text-2xl sm:text-3xl font-headline font-bold leading-none">1,452,089 Documents Indexed Today</p>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.3em] opacity-50">App Status</p>
+                    <p className="text-2xl sm:text-3xl font-headline font-bold leading-none">Over 1M Documents Processed Today</p>
                   </div>
                   <Link href="/auth" className="block">
                     <Button size="lg" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-black uppercase tracking-tighter rounded-none h-16 text-lg sm:text-xl border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
-                      Enter the Vault <ArrowRight className="ml-2 h-6 w-6" />
+                      Get Started <ArrowRight className="ml-2 h-6 w-6" />
                     </Button>
                   </Link>
                 </div>
                 <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-mono uppercase tracking-widest py-4 border-t border-foreground/20">
-                  <span>Latency: 24ms</span>
-                  <span>Uptime: 99.9%</span>
-                  <span>AES-256</span>
+                  <span>Fast Response</span>
+                  <span>99% Uptime</span>
+                  <span>Encrypted</span>
                 </div>
               </div>
             </div>
@@ -82,26 +83,26 @@ export default function Home() {
             <div className="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
               <div className="space-y-12">
                 <h2 className="text-5xl sm:text-6xl lg:text-7xl font-headline font-black uppercase leading-none tracking-tighter">
-                  We don't search.<br />
-                  <span className="text-primary">We Recall.</span>
+                  Stop Searching.<br />
+                  <span className="text-primary">Just Ask.</span>
                 </h2>
                 <div className="grid grid-cols-2 gap-8 pt-8">
                   <div className="space-y-2">
                     <span className="text-4xl sm:text-5xl font-headline font-bold block text-primary">0%</span>
-                    <p className="text-[10px] sm:text-xs uppercase tracking-widest font-bold opacity-70">Hallucination Rate</p>
+                    <p className="text-[10px] sm:text-xs uppercase tracking-widest font-bold opacity-70">Confusing Errors</p>
                   </div>
                   <div className="space-y-2">
                     <span className="text-4xl sm:text-5xl font-headline font-bold block text-primary">100%</span>
-                    <p className="text-[10px] sm:text-xs uppercase tracking-widest font-bold opacity-70">Source Verifiability</p>
+                    <p className="text-[10px] sm:text-xs uppercase tracking-widest font-bold opacity-70">Data Security</p>
                   </div>
                 </div>
               </div>
               <div className="text-base sm:text-lg lg:text-xl leading-relaxed font-light text-background/80 space-y-6 lg:border-l lg:border-background/20 lg:pl-12">
                 <p>
-                  The modern world is drowning in files. PDFs that go unread, notes that disappear into the cloud, and research that stays siloed in folders. 
+                  We all have too many files. PDFs that stay unread, notes that get lost, and research that stays hidden in folders. 
                 </p>
                 <p>
-                  <strong className="text-background font-bold uppercase tracking-tighter italic">The Archive</strong> isn't just another chat bot. It's a semantic mirror of your own knowledge. We process your data locally, index it with extreme precision, and allow you to interact with it as if it were a colleague.
+                  <strong className="text-background font-bold uppercase tracking-tighter italic">The Archive</strong> makes your data useful. We read your files and let you ask questions about them as if you were talking to an expert.
                 </p>
               </div>
             </div>
@@ -112,30 +113,30 @@ export default function Home() {
         <section id="system" className="w-full py-24 border-b-2 border-foreground">
           <div className="container px-6 mx-auto">
             <div className="mb-16 space-y-4">
-              <span className="font-mono text-xs font-bold uppercase tracking-[0.5em] text-primary">System Capabilities</span>
-              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-headline font-black uppercase tracking-tighter">The Architecture of Insight</h2>
+              <span className="font-mono text-xs font-bold uppercase tracking-[0.5em] text-primary">What we do</span>
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-headline font-black uppercase tracking-tighter">Built for Simplicity</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 border-4 border-foreground divide-y-4 md:divide-y-0 md:divide-x-4 divide-foreground shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
               {[
                 { 
-                  title: "Semantic DNA", 
-                  desc: "We don't use keywords. We understand the conceptual relationship between every sentence in your library.",
+                  title: "Smart Search", 
+                  desc: "We don't just find words. We understand what your documents are actually about.",
                   icon: Command
                 },
                 { 
-                  title: "Cold Storage", 
-                  desc: "Your data is encrypted at rest and never used for training. Your secrets remain your secrets.",
+                  title: "Total Privacy", 
+                  desc: "Your data is encrypted and never shared. Your secrets stay private.",
                   icon: ShieldCheck
                 },
                 { 
-                  title: "Traceable Logic", 
-                  desc: "Every answer comes with a direct link to the source document. No guessing, just facts.",
+                  title: "Cite Sources", 
+                  desc: "Every AI answer links directly to the page it came from. No more guessing.",
                   icon: Layers
                 },
                 { 
-                  title: "Instant Sync", 
-                  desc: "Upload a file and it's indexed in milliseconds. Your assistant is always up to date.",
+                  title: "Instant Setup", 
+                  desc: "Upload a file and start chatting in seconds. It's that easy.",
                   icon: Zap
                 }
               ].map((feat, i) => (
@@ -155,14 +156,14 @@ export default function Home() {
             <div className="flex flex-col items-center text-center space-y-12">
               <h2 className="text-6xl sm:text-8xl md:text-9xl lg:text-[14rem] font-headline font-black uppercase leading-[0.75] lg:leading-[0.7] tracking-[-0.08em] select-none">
                 Start <br />
-                Indexing<span className="text-background">.</span>
+                Now<span className="text-background">.</span>
               </h2>
               <p className="max-w-xl text-lg sm:text-xl font-bold uppercase tracking-tight text-primary-foreground/80 italic">
-                Stop searching. Start knowing. Join the index today.
+                Stop searching. Start knowing. Try it today.
               </p>
               <Link href="/auth">
                 <Button size="lg" className="bg-foreground text-background hover:bg-foreground/90 rounded-none h-20 px-12 sm:px-16 text-xl sm:text-2xl font-black uppercase tracking-tighter border-4 border-foreground shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
-                  Access the Archive
+                  Start for Free
                 </Button>
               </Link>
             </div>

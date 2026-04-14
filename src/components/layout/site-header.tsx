@@ -1,8 +1,9 @@
+
 "use client"
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Archive, Fingerprint } from 'lucide-react';
+import { Archive } from 'lucide-react';
 
 export function SiteHeader() {
   return (
@@ -19,17 +20,17 @@ export function SiteHeader() {
         
         <nav className="hidden lg:flex gap-10 items-center">
           <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/#manifesto">
-            Manifesto
+            About
           </Link>
           <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/#system">
-            The System
+            Features
           </Link>
           <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/auth">
-            Access
+            Login
           </Link>
           <Link href="/auth">
             <Button variant="default" className="rounded-none px-8 font-black uppercase tracking-tighter border-2 border-foreground hover:bg-background hover:text-foreground transition-all">
-              Initialize Index
+              Try for Free
             </Button>
           </Link>
         </nav>

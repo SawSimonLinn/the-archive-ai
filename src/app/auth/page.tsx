@@ -36,32 +36,32 @@ export default function AuthPage() {
       <div className="w-full max-w-md border-4 border-foreground bg-card p-8 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
         <div className="mb-8 space-y-2">
           <div className="inline-flex items-center gap-2 bg-primary px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-widest">
-            <Fingerprint className="h-3 w-3" /> Identity Verification
+            <Fingerprint className="h-3 w-3" /> Secure Access
           </div>
-          <h1 className="text-4xl font-headline font-black uppercase leading-none">Access Portal</h1>
+          <h1 className="text-4xl font-headline font-black uppercase leading-none">Welcome Back</h1>
         </div>
 
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-8 bg-muted p-1 border-2 border-foreground">
             <TabsTrigger value="login" className="font-black uppercase tracking-tighter data-[state=active]:bg-foreground data-[state=active]:text-background rounded-none">Login</TabsTrigger>
-            <TabsTrigger value="signup" className="font-black uppercase tracking-tighter data-[state=active]:bg-foreground data-[state=active]:text-background rounded-none">Enroll</TabsTrigger>
+            <TabsTrigger value="signup" className="font-black uppercase tracking-tighter data-[state=active]:bg-foreground data-[state=active]:text-background rounded-none">Sign Up</TabsTrigger>
           </TabsList>
           
           <TabsContent value="login">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">System ID / Email</Label>
-                <Input className="border-2 border-foreground rounded-none h-12 focus-visible:ring-primary" id="email" type="email" placeholder="ARCHIVE_USER@DOMAIN.COM" required />
+                <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">Email Address</Label>
+                <Input className="border-2 border-foreground rounded-none h-12 focus-visible:ring-primary" id="email" type="email" placeholder="user@example.com" required />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">Access Token</Label>
-                  <Link href="#" className="text-[10px] font-bold text-primary hover:underline uppercase">Recovery</Link>
+                  <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">Password</Label>
+                  <Link href="#" className="text-[10px] font-bold text-primary hover:underline uppercase">Forgot?</Link>
                 </div>
                 <Input className="border-2 border-foreground rounded-none h-12 focus-visible:ring-primary" id="password" type="password" required />
               </div>
               <Button className="w-full h-14 bg-primary text-primary-foreground border-2 border-foreground rounded-none font-black uppercase text-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all" type="submit" disabled={isLoading}>
-                {isLoading ? "AUTHORIZING..." : "INITIALIZE SESSION"}
+                {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </TabsContent>
@@ -69,19 +69,19 @@ export default function AuthPage() {
           <TabsContent value="signup">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">Legal Entity Name</Label>
-                <Input className="border-2 border-foreground rounded-none h-12" id="signup-name" placeholder="JOHN DOE" required />
+                <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">Full Name</Label>
+                <Input className="border-2 border-foreground rounded-none h-12" id="signup-name" placeholder="John Doe" required />
               </div>
               <div className="space-y-2">
-                <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">Designated Email</Label>
-                <Input className="border-2 border-foreground rounded-none h-12" id="signup-email" type="email" placeholder="NAME@DOMAIN.COM" required />
+                <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">Email Address</Label>
+                <Input className="border-2 border-foreground rounded-none h-12" id="signup-email" type="email" placeholder="name@example.com" required />
               </div>
               <div className="space-y-2">
-                <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">Security Passphrase</Label>
+                <Label className="font-mono text-[10px] uppercase font-bold tracking-widest opacity-60">Password</Label>
                 <Input className="border-2 border-foreground rounded-none h-12" id="signup-password" type="password" required />
               </div>
               <Button className="w-full h-14 bg-foreground text-background border-2 border-foreground rounded-none font-black uppercase text-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all" type="submit" disabled={isLoading}>
-                 {isLoading ? "PROCESSING..." : "REGISTER ENTITY"}
+                 {isLoading ? "Creating..." : "Create Account"}
               </Button>
             </form>
           </TabsContent>
@@ -92,7 +92,7 @@ export default function AuthPage() {
             <span className="w-full border-t-2 border-foreground/20" />
           </div>
           <div className="relative flex justify-center text-[10px] uppercase font-black tracking-[0.3em]">
-            <span className="bg-card px-4">External Auth</span>
+            <span className="bg-card px-4">Or use</span>
           </div>
         </div>
 
@@ -107,7 +107,7 @@ export default function AuthPage() {
       </div>
       
       <p className="mt-12 text-[10px] font-mono font-bold uppercase tracking-widest opacity-40 max-w-xs text-center">
-        Unauthorized access is strictly monitored. Protocol v.4.0.1 Stable
+        Your data is safe and encrypted.
       </p>
     </div>
   )

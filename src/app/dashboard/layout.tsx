@@ -25,14 +25,14 @@ export default function DashboardLayout({
           </SidebarHeader>
           <SidebarContent className="px-4">
             <SidebarGroup>
-              <SidebarGroupLabel className="px-2 text-[10px] font-mono font-black text-background/40 uppercase tracking-[0.3em] mb-4">Operations</SidebarGroupLabel>
+              <SidebarGroupLabel className="px-2 text-[10px] font-mono font-black text-background/40 uppercase tracking-[0.3em] mb-4">Navigation</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu className="gap-2">
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild className="h-12 border-2 border-transparent hover:border-primary hover:bg-primary/10 transition-all rounded-none font-bold uppercase tracking-tighter text-background">
                       <Link href="/dashboard">
                         <LayoutDashboard className="h-5 w-5" />
-                        <span>System Overview</span>
+                        <span>Dashboard</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -40,7 +40,7 @@ export default function DashboardLayout({
                     <SidebarMenuButton asChild className="h-12 border-2 border-transparent hover:border-primary hover:bg-primary/10 transition-all rounded-none font-bold uppercase tracking-tighter text-background">
                       <Link href="/dashboard/chat">
                         <MessageSquare className="h-5 w-5" />
-                        <span>Semantic Query</span>
+                        <span>Chat with AI</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -48,7 +48,7 @@ export default function DashboardLayout({
                     <SidebarMenuButton asChild className="h-12 border-2 border-transparent hover:border-primary hover:bg-primary/10 transition-all rounded-none font-bold uppercase tracking-tighter text-background">
                       <Link href="/dashboard/documents">
                         <Files className="h-5 w-5" />
-                        <span>The Stacks</span>
+                        <span>My Documents</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -62,7 +62,7 @@ export default function DashboardLayout({
                 <SidebarMenuButton asChild className="h-12 text-background/60 hover:text-background font-bold uppercase tracking-tighter rounded-none transition-colors">
                   <Link href="/dashboard/settings">
                     <Settings className="h-5 w-5" />
-                    <span>Control Panel</span>
+                    <span>Settings</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -70,7 +70,7 @@ export default function DashboardLayout({
                 <SidebarMenuButton asChild className="h-12 bg-accent text-accent-foreground border-2 border-accent hover:bg-accent/80 font-black uppercase tracking-tighter rounded-none shadow-[4px_4px_0px_0px_rgba(255,255,255,0.1)] transition-all">
                   <Link href="/auth">
                     <LogOut className="h-5 w-5" />
-                    <span>Terminate Session</span>
+                    <span>Logout</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -89,8 +89,8 @@ export default function DashboardLayout({
               </div>
             </div>
             <div className="hidden md:flex items-center gap-4 font-mono text-[10px] font-bold uppercase tracking-widest opacity-40">
-              <span>Latency: 18ms</span>
-              <span>Buffer: 100%</span>
+              <span>Status: Connected</span>
+              <span>Secure Session</span>
             </div>
           </header>
           <main className="flex-1 overflow-y-auto p-6 md:p-10 bg-background custom-scrollbar">
