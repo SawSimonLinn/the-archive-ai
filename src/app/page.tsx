@@ -2,62 +2,24 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { 
-  BookOpen, 
-  FileText, 
-  Search, 
-  ShieldCheck, 
   ArrowRight, 
-  Zap, 
-  CheckCircle,
-  Library,
   Fingerprint,
-  Layers,
   Archive,
-  Command
+  Command,
+  ShieldCheck,
+  Layers,
+  Zap
 } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { SiteHeader } from '@/components/layout/site-header';
+import { SiteFooter } from '@/components/layout/site-footer';
 
 export default function Home() {
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg');
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
-      {/* Dynamic Header */}
-      <header className="sticky top-0 z-50 w-full border-b-2 border-foreground bg-background/90 backdrop-blur-xl">
-        <div className="container flex h-20 items-center justify-between px-6 mx-auto">
-          <Link className="flex items-center gap-3 group" href="/">
-            <div className="w-10 h-10 bg-foreground rounded-none flex items-center justify-center transition-transform group-hover:-rotate-6">
-              <Archive className="h-6 w-6 text-background" />
-            </div>
-            <span className="font-headline font-black text-2xl tracking-[ -0.05em] uppercase">
-              The Archive<span className="text-primary">.ai</span>
-            </span>
-          </Link>
-          
-          <nav className="hidden lg:flex gap-10 items-center">
-            <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="#manifesto">
-              Manifesto
-            </Link>
-            <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="#system">
-              The System
-            </Link>
-            <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/auth">
-              Access
-            </Link>
-            <Link href="/auth">
-              <Button variant="default" className="rounded-none px-8 font-black uppercase tracking-tighter border-2 border-foreground hover:bg-background hover:text-foreground transition-all">
-                Initialize Index
-              </Button>
-            </Link>
-          </nav>
-
-          <div className="lg:hidden">
-            <Link href="/auth">
-              <Button className="rounded-none font-bold uppercase text-xs">Login</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1">
         {/* Editorial Hero Section */}
@@ -208,51 +170,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* Industrial Footer */}
-      <footer className="bg-background border-t-2 border-foreground py-20 px-6">
-        <div className="container mx-auto">
-          <div className="grid gap-16 lg:grid-cols-12">
-            <div className="lg:col-span-4 space-y-8">
-               <Link className="flex items-center gap-3 group" href="/">
-                <div className="w-10 h-10 bg-foreground rounded-none flex items-center justify-center">
-                  <Archive className="h-6 w-6 text-background" />
-                </div>
-                <span className="font-headline font-black text-2xl tracking-tighter uppercase">The Archive</span>
-              </Link>
-              <p className="text-sm font-medium leading-relaxed max-w-sm opacity-60">
-                A digital mirror of your intelligence. Engineered for professionals who value precision over noise.
-              </p>
-            </div>
-            
-            <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-12">
-              {[
-                { title: "Protocol", links: ["Manifesto", "The System", "Security", "Uptime"] },
-                { title: "Interface", links: ["Web Vault", "API Access", "Mobile App", "Desktop"] },
-                { title: "Network", links: ["Github", "Twitter", "Discord", "LinkedIn"] },
-                { title: "Legal", links: ["Privacy", "Terms", "Usage", "Compliance"] }
-              ].map((col, i) => (
-                <div key={i} className="space-y-6">
-                  <h4 className="font-mono text-[10px] font-bold uppercase tracking-[0.4em] opacity-40">{col.title}</h4>
-                  <ul className="space-y-4">
-                    {col.links.map((link, j) => (
-                      <li key={j}>
-                        <Link href="#" className="text-sm font-bold uppercase tracking-tighter hover:text-primary transition-colors">{link}</Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="mt-24 pt-8 border-t border-foreground/10 flex flex-col md:flex-row justify-between items-center gap-8 font-mono text-[10px] uppercase tracking-widest opacity-50">
-            <p>© 2024 THE ARCHIVE CO. ALL RIGHTS RESERVED.</p>
-            <div className="flex gap-12">
-              <span>LOCATED IN THE CLOUD</span>
-              <span>EST. 2024</span>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
