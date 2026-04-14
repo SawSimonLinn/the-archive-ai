@@ -17,7 +17,7 @@ export default function Home() {
           <Link className="text-sm font-medium hover:underline underline-offset-4" href="#features">
             Features
           </Link>
-          <Link href="/dashboard">
+          <Link href="/auth">
             <Button variant="default" className="font-medium bg-primary hover:bg-primary/90">
               Get Started
             </Button>
@@ -37,7 +37,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="space-x-4">
-                <Link href="/dashboard">
+                <Link href="/auth">
                   <Button size="lg" className="px-8 font-bold">
                     Start Analyzing Now <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>

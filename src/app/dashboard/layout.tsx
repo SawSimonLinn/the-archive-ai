@@ -57,15 +57,19 @@ export default function DashboardLayout({
           <SidebarFooter className="p-4 border-t border-sidebar-border">
              <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton className="text-muted-foreground hover:text-foreground">
-                  <Settings className="h-5 w-5" />
-                  <span>Settings</span>
+                <SidebarMenuButton asChild tooltip="Settings" className="text-muted-foreground hover:text-foreground">
+                  <Link href="/dashboard/settings">
+                    <Settings className="h-5 w-5" />
+                    <span>Settings</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton className="text-accent hover:text-accent/80 font-medium">
-                  <LogOut className="h-5 w-5" />
-                  <span>Log Out</span>
+                <SidebarMenuButton asChild className="text-accent hover:text-accent/80 font-medium">
+                  <Link href="/auth">
+                    <LogOut className="h-5 w-5" />
+                    <span>Log Out</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
