@@ -1,13 +1,63 @@
+"use client"
 
+import { useEffect, useState } from "react";
 import { Files, MessageSquare, Database, ArrowRight, Zap, ShieldCheck, Activity } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase";
+
+const STORAGE_LIMIT_MB = 50;
 
 export default function DashboardOverview() {
+  const [docCount, setDocCount] = useState<number | null>(null);
+  const [storageMB, setStorageMB] = useState<number | null>(null);
+  const [readyCount, setReadyCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("documents")
+      .select("size, status")
+      .then(({ data }) => {
+        if (!data) return;
+        setDocCount(data.length);
+        setStorageMB(data.reduce((sum, d) => sum + (d.size ?? 0), 0) / 1024 / 1024);
+        setReadyCount(data.filter((d) => d.status === "ready").length);
+      });
+  }, []);
+
+  const fmt = (n: number | null, decimals = 0) =>
+    n === null ? "—" : n.toLocaleString(undefined, { maximumFractionDigits: decimals });
+
+  const storageLabel =
+    storageMB === null
+      ? "— / 50 GB"
+      : `${fmt(storageMB, 1)} / ${STORAGE_LIMIT_MB} MB`;
+
+  const storagePct =
+    storageMB === null ? "—" : `${((storageMB / STORAGE_LIMIT_MB) * 100).toFixed(1)}% Used`;
+
   const stats = [
-    { label: "Indexed Files", value: "1,452", icon: Database, color: "text-primary", trend: "+12% Growth" },
-    { label: "Storage Used", value: "12/50", icon: Files, color: "text-foreground", trend: "24% Full" },
-    { label: "Recent Queries", value: "24", icon: Activity, color: "text-accent", trend: "Live Chat" },
+    {
+      label: "Indexed Files",
+      value: fmt(docCount),
+      icon: Database,
+      color: "text-primary",
+      trend: docCount === null ? "" : `${docCount === 1 ? "1 Document" : `${docCount} Documents`}`,
+    },
+    {
+      label: "Storage Used",
+      value: storageLabel,
+      icon: Files,
+      color: "text-foreground",
+      trend: storagePct,
+    },
+    {
+      label: "Ready to Query",
+      value: fmt(readyCount),
+      icon: Activity,
+      color: "text-accent",
+      trend: "Live & Indexed",
+    },
   ];
 
   return (
@@ -41,7 +91,7 @@ export default function DashboardOverview() {
               <span className="font-mono text-[10px] font-black uppercase tracking-widest opacity-40">{stat.trend}</span>
             </div>
             <div>
-              <div className="text-6xl font-headline font-black mb-2 leading-none">{stat.value}</div>
+              <div className="text-5xl font-headline font-black mb-2 leading-none">{stat.value}</div>
               <div className="font-mono text-xs font-bold uppercase tracking-[0.2em] opacity-60">{stat.label}</div>
             </div>
           </div>
@@ -86,7 +136,7 @@ export default function DashboardOverview() {
             </p>
             <div className="p-4 border-2 border-primary/40 bg-primary/10 font-mono text-[10px] font-bold uppercase tracking-widest leading-loose">
               Security: AES-256 <br />
-              AI Model: Gemini Flash <br />
+              AI Model: GPT-4o <br />
               Data Policy: Private & Encrypted
             </div>
             <Link href="/dashboard/chat">

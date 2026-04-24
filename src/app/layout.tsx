@@ -6,6 +6,11 @@ import { Toaster } from "@/components/ui/toaster";
 export const metadata: Metadata = {
   title: 'AI Knowledge Assistant | RAG Document Analysis',
   description: 'Upload your documents and ask questions using Retrieval-Augmented Generation.',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({

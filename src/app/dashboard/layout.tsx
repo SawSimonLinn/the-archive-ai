@@ -6,15 +6,9 @@ import { Archive, MessageSquare, Files, Settings, LogOut, LayoutDashboard, Finge
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useState } from "react";
-
-const mockDocs = [
-  { id: "1", name: "PROJECT_PROPOSAL_FINAL.PDF" },
-  { id: "2", name: "SYSTEM_SECURITY_POLICY.DOCX" },
-  { id: "3", name: "REDACTED_MEETING_NOTES.TXT" },
-  { id: "4", name: "RESEARCH_DATA_V2.PDF" },
-  { id: "5", name: "NETWORK_LOG_EXCERPT.TXT" },
-];
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardLayout({
   children,
@@ -22,6 +16,30 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [docsOpen, setDocsOpen] = useState(false);
+  const [docs, setDocs] = useState<{ id: string; name: string }[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) router.replace("/auth");
+    });
+  }, [router]);
+
+  useEffect(() => {
+    supabase
+      .from('documents')
+      .select('id, name')
+      .order('created_at', { ascending: false })
+      .limit(10)
+      .then(({ data }) => {
+        if (data) setDocs(data);
+      });
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.replace("/auth");
+  };
 
   return (
     <SidebarProvider>
@@ -75,7 +93,7 @@ export default function DashboardLayout({
                               </Link>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
-                          {mockDocs.map((doc) => (
+                          {docs.map((doc) => (
                             <SidebarMenuSubItem key={doc.id}>
                               <SidebarMenuSubButton asChild className="h-10 rounded-none font-bold uppercase tracking-tighter text-background/70 hover:text-background hover:bg-primary/10 text-xs">
                                 <Link href={`/dashboard/chat?docId=${doc.id}`}>
@@ -104,11 +122,9 @@ export default function DashboardLayout({
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild className="h-12 bg-accent text-accent-foreground border-2 border-accent hover:bg-accent/80 font-black uppercase tracking-tighter rounded-none shadow-[4px_4px_0px_0px_rgba(255,255,255,0.1)] transition-all">
-                  <Link href="/auth">
-                    <LogOut className="h-5 w-5" />
-                    <span>Logout</span>
-                  </Link>
+                <SidebarMenuButton onClick={handleLogout} className="h-12 bg-accent text-accent-foreground border-2 border-accent hover:bg-accent/80 font-black uppercase tracking-tighter rounded-none shadow-[4px_4px_0px_0px_rgba(255,255,255,0.1)] transition-all cursor-pointer">
+                  <LogOut className="h-5 w-5" />
+                  <span>Logout</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

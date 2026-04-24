@@ -3,16 +3,17 @@
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileText, MoreVertical, Trash2, RefreshCw, Layers } from "lucide-react";
+import { FileText, MoreVertical, Trash2, Layers } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Document } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface DocumentListProps {
   documents: Document[];
+  onDelete?: (id: string) => void;
 }
 
-export function DocumentList({ documents }: DocumentListProps) {
+export function DocumentList({ documents, onDelete }: DocumentListProps) {
   if (documents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center border-8 border-dashed border-foreground/10 bg-muted/20">
@@ -51,11 +52,13 @@ export function DocumentList({ documents }: DocumentListProps) {
               <TableCell className="px-8">
                 <div className={cn(
                   "inline-flex items-center justify-center h-10 px-4 border-2 border-foreground font-black uppercase text-[10px] tracking-widest transition-colors",
-                  doc.status === 'ready' 
-                    ? "bg-primary text-foreground" 
+                  doc.status === 'ready'
+                    ? "bg-primary text-foreground"
+                    : doc.status === 'error'
+                    ? "bg-accent text-accent-foreground"
                     : "bg-background text-foreground animate-pulse"
                 )}>
-                  {doc.status === 'ready' ? 'Ready' : 'Processing'}
+                  {doc.status === 'ready' ? 'Ready' : doc.status === 'error' ? 'Error' : 'Processing'}
                 </div>
               </TableCell>
               <TableCell className="px-8 font-mono text-sm font-black uppercase opacity-60">
@@ -72,10 +75,10 @@ export function DocumentList({ documents }: DocumentListProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56 border-4 border-foreground rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-0">
-                    <DropdownMenuItem className="gap-3 font-black uppercase tracking-tighter text-sm p-4 focus:bg-primary rounded-none border-b-2 border-foreground">
-                      <RefreshCw className="h-5 w-5" /> Refresh
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-3 font-black uppercase tracking-tighter text-sm p-4 focus:bg-accent focus:text-accent-foreground text-accent rounded-none">
+                    <DropdownMenuItem
+                      onClick={() => onDelete?.(doc.id)}
+                      className="gap-3 font-black uppercase tracking-tighter text-sm p-4 focus:bg-accent focus:text-accent-foreground text-accent rounded-none"
+                    >
                       <Trash2 className="h-5 w-5" /> Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>

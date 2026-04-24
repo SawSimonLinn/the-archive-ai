@@ -9,8 +9,15 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
+export interface UploadResult {
+  documentId: string;
+  name: string;
+  text: string;
+  file: File;
+}
+
 interface UploadZoneProps {
-  onUploadSuccess?: (files: File[]) => void;
+  onUploadSuccess?: (result: UploadResult) => void;
   compact?: boolean;
 }
 
@@ -40,25 +47,36 @@ export function UploadZone({ onUploadSuccess, compact = false }: UploadZoneProps
   const handleUpload = async () => {
     if (files.length === 0) return;
     setUploading(true);
-    
-    // Simulating upload and processing
-    for (let i = 0; i <= 100; i += 20) {
-      setProgress(i);
-      await new Promise(resolve => setTimeout(resolve, 300));
+    setProgress(10);
+
+    const file = files[0];
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      setProgress(30);
+      const res = await fetch('/api/extract-text', { method: 'POST', body: formData });
+      setProgress(90);
+
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      setProgress(100);
+
+      toast({
+        title: "File Processed",
+        description: `${file.name} added to the Archive.`,
+      });
+
+      if (onUploadSuccess) {
+        onUploadSuccess({ documentId: data.documentId, name: file.name, text: data.text, file });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Upload Failed", description: "Could not process the file." });
+    } finally {
+      setUploading(false);
+      setProgress(0);
+      setFiles([]);
     }
-
-    toast({
-      title: "File Processed",
-      description: `${files.length} document(s) added to the Archive.`,
-    });
-
-    if (onUploadSuccess) {
-      onUploadSuccess(files);
-    }
-
-    setUploading(false);
-    setProgress(0);
-    setFiles([]);
   };
 
   return (
@@ -87,9 +105,9 @@ export function UploadZone({ onUploadSuccess, compact = false }: UploadZoneProps
         <p className="text-[10px] font-bold text-muted-foreground mt-2 text-center max-w-sm mb-6 uppercase tracking-widest">
           PDF, TXT or DOCX files.
         </p>
-        <Button 
-          variant="outline" 
-          type="button" 
+        <Button
+          variant="outline"
+          type="button"
           onClick={open}
           className="h-10 px-6 border-2 border-foreground rounded-none font-black uppercase tracking-tighter hover:bg-foreground hover:text-background transition-all"
         >

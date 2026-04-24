@@ -5,15 +5,15 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  Send, 
-  User, 
-  Bot, 
-  Loader2, 
-  Trash2, 
-  Command, 
-  Copy, 
-  Download, 
+import {
+  Send,
+  User,
+  Bot,
+  Loader2,
+  Trash2,
+  Command,
+  Copy,
+  Download,
   Check,
   Zap,
   Files,
@@ -24,48 +24,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ragQueryResponseGeneration } from "@/ai/flows/rag-query-response-generation";
+import { searchDocumentChunks } from "@/ai/flows/vector-search";
 import { Message } from "@/lib/types";
-
-const MOCK_DOC_HISTORY: Record<string, { name: string; messages: Message[] }> = {
-  "1": {
-    name: "PROJECT_PROPOSAL_FINAL.PDF",
-    messages: [
-      { id: "h1-1", role: "assistant", content: "I've analyzed PROJECT_PROPOSAL_FINAL.PDF. You can now ask questions about its content.", timestamp: new Date("2024-03-20T14:31:00") },
-      { id: "h1-2", role: "user", content: "What are the 3 main takeaways from this file?", timestamp: new Date("2024-03-20T14:32:00") },
-      { id: "h1-3", role: "assistant", content: "The three main takeaways are: (1) The project targets a 40% reduction in infrastructure costs, (2) Phase 1 delivery is scheduled for Q3, and (3) A cross-functional team of 12 is required for execution.", timestamp: new Date("2024-03-20T14:32:15"), sources: ["PROJECT_PROPOSAL_FINAL.PDF"] },
-    ],
-  },
-  "2": {
-    name: "SYSTEM_SECURITY_POLICY.DOCX",
-    messages: [
-      { id: "h2-1", role: "assistant", content: "I've analyzed SYSTEM_SECURITY_POLICY.DOCX. You can now ask questions about its content.", timestamp: new Date("2024-03-21T09:16:00") },
-      { id: "h2-2", role: "user", content: "Does this document discuss security or privacy protocols?", timestamp: new Date("2024-03-21T09:17:00") },
-      { id: "h2-3", role: "assistant", content: "Yes. The document mandates AES-256 encryption for all data at rest, requires MFA for system access, and outlines a 72-hour breach notification window per GDPR compliance requirements.", timestamp: new Date("2024-03-21T09:17:20"), sources: ["SYSTEM_SECURITY_POLICY.DOCX"] },
-    ],
-  },
-  "3": {
-    name: "REDACTED_MEETING_NOTES.TXT",
-    messages: [
-      { id: "h3-1", role: "assistant", content: "I've analyzed REDACTED_MEETING_NOTES.TXT. You can now ask questions about its content.", timestamp: new Date("2024-03-22T16:46:00") },
-    ],
-  },
-  "4": {
-    name: "RESEARCH_DATA_V2.PDF",
-    messages: [
-      { id: "h4-1", role: "assistant", content: "I've analyzed RESEARCH_DATA_V2.PDF. You can now ask questions about its content.", timestamp: new Date("2024-03-23T11:21:00") },
-      { id: "h4-2", role: "user", content: "Can you summarize the technical requirements mentioned in this file?", timestamp: new Date("2024-03-23T11:22:00") },
-      { id: "h4-3", role: "assistant", content: "The technical requirements include: a minimum of 16GB RAM per node, a distributed storage layer with 99.99% uptime SLA, and support for parallel query execution across 8 processing cores.", timestamp: new Date("2024-03-23T11:22:30"), sources: ["RESEARCH_DATA_V2.PDF"] },
-      { id: "h4-4", role: "user", content: "What datasets were used?", timestamp: new Date("2024-03-23T11:24:00") },
-      { id: "h4-5", role: "assistant", content: "The study references three primary datasets: the CERN Open Data portal, a proprietary telemetry feed from 2023, and a synthetic benchmark set generated internally for stress testing.", timestamp: new Date("2024-03-23T11:24:18"), sources: ["RESEARCH_DATA_V2.PDF"] },
-    ],
-  },
-  "5": {
-    name: "NETWORK_LOG_EXCERPT.TXT",
-    messages: [
-      { id: "h5-1", role: "assistant", content: "I've analyzed NETWORK_LOG_EXCERPT.TXT. You can now ask questions about its content.", timestamp: new Date("2024-03-24T08:06:00") },
-    ],
-  },
-};
 import {
   Dialog,
   DialogContent,
@@ -74,7 +34,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { UploadZone } from "@/components/documents/upload-zone";
+import { UploadZone, UploadResult } from "@/components/documents/upload-zone";
+import { supabase } from "@/lib/supabase";
 
 export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -82,6 +43,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const [activeFileUrl, setActiveFileUrl] = useState<string | null>(null);
   const [activeFileContent, setActiveFileContent] = useState<string | null>(null);
   const [showTLDR, setShowTLDR] = useState(false);
@@ -95,75 +57,91 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     }
   }, [messages, isLoading]);
 
-  // Cleanup object URL on unmount
   useEffect(() => {
     return () => {
       if (activeFileUrl) URL.revokeObjectURL(activeFileUrl);
     };
   }, [activeFileUrl]);
 
-  // Load history for a doc selected from the sidebar
+  // Load document + chat history when a doc is selected from the sidebar
   useEffect(() => {
     if (!initialDocId) return;
-    const entry = MOCK_DOC_HISTORY[initialDocId];
-    if (!entry) return;
-    setActiveFile(entry.name);
-    setActiveFileUrl(null);
-    setActiveFileContent(null);
-    setMessages(entry.messages);
-    setSuggestedQuestions([]);
+
+    const load = async () => {
+      const { data: doc } = await supabase
+        .from('documents')
+        .select('name')
+        .eq('id', initialDocId)
+        .single();
+
+      if (!doc) return;
+
+      setActiveFile(doc.name);
+      setActiveDocumentId(initialDocId);
+      setActiveFileUrl(null);
+      setActiveFileContent(null);
+      setSuggestedQuestions([]);
+
+      const { data: msgs } = await supabase
+        .from('chat_messages')
+        .select('id, role, content, created_at')
+        .eq('document_id', initialDocId)
+        .order('created_at', { ascending: true });
+
+      if (msgs && msgs.length > 0) {
+        setMessages(msgs.map(m => ({
+          id: m.id,
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          timestamp: new Date(m.created_at),
+          sources: m.role === 'assistant' ? [doc.name] : undefined,
+        })));
+      } else {
+        setMessages([{
+          id: "init",
+          role: "assistant",
+          content: `I've analyzed ${doc.name}. You can now ask questions about its content.`,
+          timestamp: new Date(),
+        }]);
+      }
+    };
+
+    load();
   }, [initialDocId]);
 
-  const handleUploadSuccess = async (files: File[]) => {
-    const file = files[0];
-    const fileName = file.name;
-    const url = URL.createObjectURL(file);
-
-    setActiveFile(fileName);
+  const handleUploadSuccess = (result: UploadResult) => {
+    const url = URL.createObjectURL(result.file);
+    setActiveFile(result.name);
     setActiveFileUrl(url);
+    setActiveFileContent(result.text);
+    setActiveDocumentId(result.documentId);
     setShowTLDR(true);
 
-    // Extract text content from the file
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/extract-text', { method: 'POST', body: formData });
-      const data = await res.json();
-      setActiveFileContent(data.text ?? null);
-    } catch {
-      setActiveFileContent(null);
-    }
-    
     setSuggestedQuestions([
-      `What are the 3 main takeaways from ${fileName}?`,
+      `What are the 3 main takeaways from ${result.name}?`,
       `Can you summarize the technical requirements mentioned in this file?`,
       `Does this document discuss security or privacy protocols?`
     ]);
 
-    setMessages([
-      {
-        id: "init",
-        role: "assistant",
-        content: `I've analyzed ${fileName}. You can now ask questions about its content. I've highlighted the main points in the summary modal.`,
-        timestamp: new Date(),
-      }
-    ]);
+    setMessages([{
+      id: "init",
+      role: "assistant",
+      content: `I've analyzed ${result.name}. You can now ask questions about its content. I've highlighted the main points in the summary modal.`,
+      timestamp: new Date(),
+    }]);
   };
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
-    toast({
-      title: "Copied!",
-      description: "Message copied to clipboard.",
-    });
+    toast({ title: "Copied!", description: "Message copied to clipboard." });
     setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleDownloadSummary = () => {
     const summaryText = `TL;DR Summary for: ${activeFile}\n\nThis document covers technical specifications and industrial design protocols. The key focus is on efficiency and secure data management within a brutalist architectural framework.`;
     const element = document.createElement("a");
-    const file = new Blob([summaryText], {type: 'text/plain'});
+    const file = new Blob([summaryText], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
     element.download = `${activeFile}_summary.txt`;
     document.body.appendChild(element);
@@ -173,7 +151,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
 
   const handleSend = async (overrideInput?: string) => {
     const query = overrideInput || input;
-    if (!query.trim() || isLoading || !activeFile) return;
+    if (!query.trim() || isLoading || !activeFile || !activeDocumentId) return;
 
     setSuggestedQuestions([]);
 
@@ -189,11 +167,31 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     setIsLoading(true);
 
     try {
+      // Save user message
+      await supabase.from('chat_messages').insert({
+        document_id: activeDocumentId,
+        role: 'user',
+        content: query,
+      });
+
+      // Vector search for relevant chunks, fall back to full text if none found
+      let retrievedContext: string[];
+      try {
+        const chunks = await searchDocumentChunks(query, activeDocumentId);
+        retrievedContext = chunks.length > 0
+          ? chunks
+          : activeFileContent
+            ? [activeFileContent.slice(0, 8000)]
+            : [`Context extracted from ${activeFile}...`];
+      } catch {
+        retrievedContext = activeFileContent
+          ? [activeFileContent.slice(0, 8000)]
+          : [`Context extracted from ${activeFile}...`];
+      }
+
       const response = await ragQueryResponseGeneration({
         userQuery: query,
-        retrievedContext: activeFileContent
-          ? [activeFileContent]
-          : [`Context extracted from ${activeFile}...`],
+        retrievedContext,
       });
 
       const aiMsg: Message = {
@@ -205,7 +203,14 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
       };
 
       setMessages(prev => [...prev, aiMsg]);
-    } catch (error) {
+
+      // Save AI response
+      await supabase.from('chat_messages').insert({
+        document_id: activeDocumentId,
+        role: 'assistant',
+        content: response.answer,
+      });
+    } catch {
       toast({ variant: "destructive", title: "System Error", description: "Could not retrieve document context." });
     } finally {
       setIsLoading(false);
@@ -244,31 +249,32 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
             <span className="font-mono text-[8px] font-bold uppercase tracking-widest opacity-60">Source: {activeFile}</span>
           </div>
         </div>
-        
+
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-          <Button 
+          <Button
             onClick={() => setShowPreview(true)}
-            variant="outline" 
+            variant="outline"
             className="flex-1 sm:flex-none h-10 border-2 border-foreground bg-background font-black uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background transition-all"
           >
             <Eye className="h-4 w-4" /> View Document
           </Button>
 
-          <Button 
+          <Button
             onClick={() => setShowTLDR(true)}
-            variant="outline" 
+            variant="outline"
             className="flex-1 sm:flex-none h-10 border-2 border-foreground bg-background font-black uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background transition-all"
           >
             <Zap className="h-4 w-4 text-primary" /> Get Summary
           </Button>
 
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="flex-1 sm:flex-none h-10 border-2 border-foreground font-bold uppercase tracking-tighter gap-2 hover:bg-destructive hover:text-destructive-foreground transition-all" 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 sm:flex-none h-10 border-2 border-foreground font-bold uppercase tracking-tighter gap-2 hover:bg-destructive hover:text-destructive-foreground transition-all"
             onClick={() => {
               setMessages([]);
               setActiveFile(null);
+              setActiveDocumentId(null);
               setActiveFileUrl(null);
               setActiveFileContent(null);
               setSuggestedQuestions([]);
@@ -293,8 +299,8 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
           </DialogHeader>
           <div className="flex-1 bg-muted/30 p-4">
             {activeFileUrl ? (
-              <iframe 
-                src={activeFileUrl} 
+              <iframe
+                src={activeFileUrl}
                 className="w-full h-full border-4 border-foreground bg-white"
                 title="Document Preview"
               />
@@ -323,18 +329,18 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
           <div className="p-10 space-y-8">
             <div className="p-6 bg-muted border-2 border-foreground font-medium text-sm leading-relaxed relative">
               <div className="absolute -top-3 left-4 bg-foreground text-background px-2 py-0.5 text-[8px] font-black uppercase">Executive Summary</div>
-              This document contains detailed information about <span className="font-black underline decoration-primary decoration-4">System Protocols</span> and <span className="font-black underline decoration-primary decoration-4">Architectural Blueprints</span>. 
+              This document has been indexed and is ready for intelligent queries.
               <br /><br />
-              The AI has indexed the full text and is ready to answer specific questions regarding its technical requirements.
+              The AI has processed the full text and can answer specific questions about its content, citing only what is in the document.
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Button 
+              <Button
                 onClick={handleDownloadSummary}
                 className="h-16 bg-primary text-foreground border-4 border-foreground rounded-none font-black uppercase tracking-tighter gap-3 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
               >
                 <Download className="h-5 w-5" /> Download TL;DR
               </Button>
-              <Button 
+              <Button
                 onClick={() => setShowTLDR(false)}
                 className="h-16 bg-foreground text-background border-4 border-foreground rounded-none font-black uppercase tracking-tighter gap-3 hover:bg-muted hover:text-foreground transition-all"
               >
@@ -368,9 +374,9 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
                   msg.role === "user" ? "bg-card" : "bg-muted/90"
                 )}>
                   {msg.content}
-                  
+
                   {msg.role === "assistant" && (
-                    <button 
+                    <button
                       onClick={() => handleCopy(msg.content, msg.id)}
                       className="absolute top-2 right-2 p-2 bg-background border-2 border-foreground opacity-0 group-hover:opacity-100 transition-all hover:bg-primary shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                       title="Copy response"
