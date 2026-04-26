@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PDFParse } from 'pdf-parse';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { processDocumentForEmbeddings } from '@/ai/flows/document-embedding-processing';
+import { generateDocumentInitialAnalysis } from '@/ai/flows/document-initial-analysis';
+
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,14 +20,22 @@ export async function POST(req: NextRequest) {
 
     // Extract text
     let text = '';
-    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse');
-      const data = await pdfParse(buffer);
-      text = data.text;
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const result = await parser.getText();
+        text = result.text;
+      } finally {
+        await parser.destroy();
+      }
     } else {
       text = buffer.toString('utf-8');
     }
+
+    const initialAnalysisPromise = generateDocumentInitialAnalysis({
+      documentName: file.name,
+      documentContent: text,
+    });
 
     // Upload file to Supabase Storage
     const storagePath = `${Date.now()}_${file.name}`;
@@ -40,14 +52,16 @@ export async function POST(req: NextRequest) {
         type: file.name.split('.').pop() ?? 'txt',
         size: file.size,
         storage_path: storagePath,
-        status: 'processing',
       })
       .select()
       .single();
     if (insertError || !doc) throw insertError ?? new Error('Insert failed');
 
-    // Chunk, embed, and store synchronously so status is accurate on return
-    const chunks = await processDocumentForEmbeddings({ documentId: doc.id, documentContent: text });
+    // Chunk, embed, and store synchronously before returning the document id.
+    const [chunks, initialAnalysis] = await Promise.all([
+      processDocumentForEmbeddings({ documentId: doc.id, documentContent: text }),
+      initialAnalysisPromise,
+    ]);
     if (chunks.length > 0) {
       await supabaseAdmin.from('document_chunks').insert(
         chunks.map((c, i) => ({
@@ -58,9 +72,13 @@ export async function POST(req: NextRequest) {
         }))
       );
     }
-    await supabaseAdmin.from('documents').update({ status: 'ready' }).eq('id', doc.id);
 
-    return NextResponse.json({ text, documentId: doc.id });
+    return NextResponse.json({
+      text,
+      documentId: doc.id,
+      summary: initialAnalysis.summary,
+      suggestedQuestions: initialAnalysis.suggestedQuestions,
+    });
   } catch (error) {
     console.error('Text extraction error:', error);
     return NextResponse.json({ error: 'Failed to extract text' }, { status: 500 });

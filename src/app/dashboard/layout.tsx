@@ -146,7 +146,7 @@ export default function DashboardLayout({
               <span>Secure Session</span>
             </div>
           </header>
-          <main className="flex-1 overflow-y-auto p-6 md:p-10 bg-background custom-scrollbar">
+          <main className="flex-1 overflow-y-auto p-5 md:p-7 bg-background custom-scrollbar">
             {children}
           </main>
         </SidebarInset>

@@ -46,6 +46,8 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const [activeFileUrl, setActiveFileUrl] = useState<string | null>(null);
   const [activeFileContent, setActiveFileContent] = useState<string | null>(null);
+  const [documentSummary, setDocumentSummary] = useState<string | null>(null);
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
   const [showTLDR, setShowTLDR] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
@@ -66,20 +68,26 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   // Load document + chat history when a doc is selected from the sidebar
   useEffect(() => {
     if (!initialDocId) return;
+    let cancelled = false;
 
     const load = async () => {
+      setIsAnalysisLoading(true);
       const { data: doc } = await supabase
         .from('documents')
         .select('name')
         .eq('id', initialDocId)
         .single();
 
-      if (!doc) return;
+      if (!doc || cancelled) {
+        if (!cancelled) setIsAnalysisLoading(false);
+        return;
+      }
 
       setActiveFile(doc.name);
       setActiveDocumentId(initialDocId);
       setActiveFileUrl(null);
       setActiveFileContent(null);
+      setDocumentSummary(null);
       setSuggestedQuestions([]);
 
       const { data: msgs } = await supabase
@@ -104,9 +112,30 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
           timestamp: new Date(),
         }]);
       }
+
+      try {
+        const res = await fetch(`/api/documents/${initialDocId}/analysis`);
+        if (!res.ok) throw new Error('Could not load document analysis');
+        const analysis = await res.json();
+        if (cancelled) return;
+
+        setDocumentSummary(analysis.summary ?? null);
+        setSuggestedQuestions((analysis.suggestedQuestions ?? []).filter(Boolean).slice(0, 3));
+      } catch {
+        if (!cancelled) {
+          setDocumentSummary('The document was indexed, but a content-specific TL;DR could not be prepared from the stored chunks.');
+          setSuggestedQuestions([]);
+        }
+      } finally {
+        if (!cancelled) setIsAnalysisLoading(false);
+      }
     };
 
     load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [initialDocId]);
 
   const handleUploadSuccess = (result: UploadResult) => {
@@ -115,13 +144,11 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     setActiveFileUrl(url);
     setActiveFileContent(result.text);
     setActiveDocumentId(result.documentId);
+    setDocumentSummary(result.summary);
+    setIsAnalysisLoading(false);
     setShowTLDR(true);
 
-    setSuggestedQuestions([
-      `What are the 3 main takeaways from ${result.name}?`,
-      `Can you summarize the technical requirements mentioned in this file?`,
-      `Does this document discuss security or privacy protocols?`
-    ]);
+    setSuggestedQuestions(result.suggestedQuestions.filter(Boolean).slice(0, 3));
 
     setMessages([{
       id: "init",
@@ -139,7 +166,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   };
 
   const handleDownloadSummary = () => {
-    const summaryText = `TL;DR Summary for: ${activeFile}\n\nThis document covers technical specifications and industrial design protocols. The key focus is on efficiency and secure data management within a brutalist architectural framework.`;
+    const summaryText = `TL;DR Summary for: ${activeFile}\n\n${documentSummary ?? 'No content-specific TL;DR is available for this document yet.'}`;
     const element = document.createElement("a");
     const file = new Blob([summaryText], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
@@ -264,7 +291,8 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
             variant="outline"
             className="flex-1 sm:flex-none h-10 border-2 border-foreground bg-background font-black uppercase tracking-tighter gap-2 hover:bg-foreground hover:text-background transition-all"
           >
-            <Zap className="h-4 w-4 text-primary" /> Get Summary
+            {isAnalysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4 text-primary" />}
+            {isAnalysisLoading ? "Preparing Summary" : "Get Summary"}
           </Button>
 
           <Button
@@ -277,6 +305,8 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
               setActiveDocumentId(null);
               setActiveFileUrl(null);
               setActiveFileContent(null);
+              setDocumentSummary(null);
+              setIsAnalysisLoading(false);
               setSuggestedQuestions([]);
             }}
           >
@@ -329,9 +359,16 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
           <div className="p-10 space-y-8">
             <div className="p-6 bg-muted border-2 border-foreground font-medium text-sm leading-relaxed relative">
               <div className="absolute -top-3 left-4 bg-foreground text-background px-2 py-0.5 text-[8px] font-black uppercase">Executive Summary</div>
-              This document has been indexed and is ready for intelligent queries.
-              <br /><br />
-              The AI has processed the full text and can answer specific questions about its content, citing only what is in the document.
+              {isAnalysisLoading ? (
+                <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.3em]">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  Preparing document-specific TL;DR...
+                </div>
+              ) : (
+                <div className="whitespace-pre-line">
+                  {documentSummary ?? 'No content-specific TL;DR is available for this document yet.'}
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Button

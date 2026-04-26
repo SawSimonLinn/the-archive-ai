@@ -13,6 +13,8 @@ export interface UploadResult {
   documentId: string;
   name: string;
   text: string;
+  summary: string;
+  suggestedQuestions: string[];
   file: File;
 }
 
@@ -68,7 +70,14 @@ export function UploadZone({ onUploadSuccess, compact = false }: UploadZoneProps
       });
 
       if (onUploadSuccess) {
-        onUploadSuccess({ documentId: data.documentId, name: file.name, text: data.text, file });
+        onUploadSuccess({
+          documentId: data.documentId,
+          name: file.name,
+          text: data.text,
+          summary: data.summary ?? 'No content-specific TL;DR is available for this document yet.',
+          suggestedQuestions: data.suggestedQuestions ?? [],
+          file,
+        });
       }
     } catch {
       toast({ variant: "destructive", title: "Upload Failed", description: "Could not process the file." });
@@ -141,7 +150,7 @@ export function UploadZone({ onUploadSuccess, compact = false }: UploadZoneProps
           {uploading ? (
             <div className="space-y-3 p-4 border-4 border-foreground bg-muted">
               <div className="flex justify-between items-center font-mono text-[9px] font-black uppercase tracking-widest">
-                <span>Reading Context...</span>
+                <span>Reading + Preparing TL;DR...</span>
                 <span className="text-primary">{progress}%</span>
               </div>
               <Progress value={progress} className="h-3 rounded-none border-2 border-foreground bg-background" />
