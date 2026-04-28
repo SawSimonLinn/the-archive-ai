@@ -2,22 +2,33 @@
 "use client"
 
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarInset, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
-import { Archive, MessageSquare, Files, Settings, LogOut, LayoutDashboard, Fingerprint, ChevronRight, FileText } from "lucide-react";
+import { Archive, MessageSquare, Files, Settings, LogOut, LayoutDashboard, Fingerprint, FileText } from "lucide-react";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [docsOpen, setDocsOpen] = useState(false);
   const [docs, setDocs] = useState<{ id: string; name: string }[]>([]);
+  const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
+  const isChatRoute = pathname.startsWith("/dashboard/chat");
+
+  const fetchDocs = useCallback(async () => {
+    const { data } = await supabase
+      .from('documents')
+      .select('id, name')
+      .order('created_at', { ascending: false });
+
+    if (data) setDocs(data);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -26,15 +37,34 @@ export default function DashboardLayout({
   }, [router]);
 
   useEffect(() => {
-    supabase
-      .from('documents')
-      .select('id, name')
-      .order('created_at', { ascending: false })
-      .limit(10)
-      .then(({ data }) => {
-        if (data) setDocs(data);
-      });
-  }, []);
+    fetchDocs();
+  }, [pathname, fetchDocs]);
+
+  useEffect(() => {
+    const syncActiveDocument = () => {
+      setActiveDocId(new URLSearchParams(window.location.search).get("docId"));
+    };
+    const handleActiveDocumentChange = (event: Event) => {
+      setActiveDocId((event as CustomEvent<string | null>).detail ?? null);
+    };
+
+    syncActiveDocument();
+    window.addEventListener("popstate", syncActiveDocument);
+    window.addEventListener("archive:active-document-changed", handleActiveDocumentChange);
+
+    return () => {
+      window.removeEventListener("popstate", syncActiveDocument);
+      window.removeEventListener("archive:active-document-changed", handleActiveDocumentChange);
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    window.addEventListener("archive:documents-changed", fetchDocs);
+
+    return () => {
+      window.removeEventListener("archive:documents-changed", fetchDocs);
+    };
+  }, [fetchDocs]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -67,47 +97,54 @@ export default function DashboardLayout({
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild className="h-12 border-2 border-transparent hover:border-primary hover:bg-primary/10 transition-all rounded-none font-bold uppercase tracking-tighter text-background">
-                      <Link href="/dashboard/chat">
+                    <SidebarMenuButton asChild isActive={pathname === "/dashboard/chat" && activeDocId === null} className="h-12 border-2 border-transparent hover:border-primary hover:bg-primary/10 data-[active=true]:border-primary data-[active=true]:bg-primary/20 transition-all rounded-none font-bold uppercase tracking-tighter text-background">
+                      <Link href="/dashboard/chat" onClick={() => setActiveDocId(null)}>
                         <MessageSquare className="h-5 w-5" />
                         <span>Chat with AI</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <Collapsible open={docsOpen} onOpenChange={setDocsOpen} asChild>
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton className="h-12 border-2 border-transparent hover:border-primary hover:bg-primary/10 transition-all rounded-none font-bold uppercase tracking-tighter text-background w-full">
-                          <Files className="h-5 w-5 shrink-0" />
-                          <span className="flex-1 text-left">My Documents</span>
-                          <ChevronRight className={`h-4 w-4 shrink-0 transition-transform duration-200 ${docsOpen ? "rotate-90" : ""}`} />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub className="ml-4 mt-1 border-l-2 border-background/20 pl-3 space-y-1">
-                          <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild className="h-10 rounded-none font-bold uppercase tracking-tighter text-background/70 hover:text-background hover:bg-primary/10 text-xs">
-                              <Link href="/dashboard/documents">
-                                <FileText className="h-4 w-4 shrink-0" />
-                                <span>All Documents</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                          {docs.map((doc) => (
-                            <SidebarMenuSubItem key={doc.id}>
-                              <SidebarMenuSubButton asChild className="h-10 rounded-none font-bold uppercase tracking-tighter text-background/70 hover:text-background hover:bg-primary/10 text-xs">
-                                <Link href={`/dashboard/chat?docId=${doc.id}`}>
-                                  <FileText className="h-4 w-4 shrink-0 opacity-60" />
-                                  <span className="truncate">{doc.name}</span>
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/dashboard/documents"} className="h-12 border-2 border-transparent hover:border-primary hover:bg-primary/10 data-[active=true]:border-primary data-[active=true]:bg-primary/20 transition-all rounded-none font-bold uppercase tracking-tighter text-background">
+                      <Link href="/dashboard/documents" onClick={() => setActiveDocId(null)}>
+                        <Files className="h-5 w-5" />
+                        <span>Uploaded Documents</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="pt-1">
+              <SidebarGroupLabel className="px-2 text-[10px] font-mono font-black text-background/40 uppercase tracking-[0.3em] mb-3">
+                Document Chats
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenuSub className="ml-2 border-l-2 border-background/20 pl-3 space-y-1">
+                  {docs.length === 0 ? (
+                    <SidebarMenuSubItem>
+                      <span className="block px-2 py-2 font-mono text-[9px] font-bold uppercase tracking-widest text-background/35">
+                        No uploads yet
+                      </span>
+                    </SidebarMenuSubItem>
+                  ) : (
+                    docs.map((doc) => (
+                      <SidebarMenuSubItem key={doc.id}>
+                        <SidebarMenuSubButton
+                          asChild
+                          isActive={activeDocId === doc.id}
+                          className="h-9 rounded-none font-bold uppercase tracking-tighter text-background/70 hover:text-background hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-background text-xs"
+                        >
+                          <Link href={`/dashboard/chat?docId=${doc.id}`} onClick={() => setActiveDocId(doc.id)}>
+                            <FileText className="h-4 w-4 shrink-0 opacity-70" />
+                            <span className="truncate">{doc.name}</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))
+                  )}
+                </SidebarMenuSub>
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
@@ -132,6 +169,7 @@ export default function DashboardLayout({
         </Sidebar>
 
         <SidebarInset className="flex flex-col w-full h-full overflow-hidden">
+          {!isChatRoute && (
           <header className="flex h-20 shrink-0 items-center gap-2 border-b-4 border-foreground px-6 justify-between bg-card z-10">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="h-10 w-10 border-2 border-foreground rounded-none" />
@@ -146,7 +184,13 @@ export default function DashboardLayout({
               <span>Secure Session</span>
             </div>
           </header>
-          <main className="flex-1 overflow-y-auto p-5 md:p-7 bg-background custom-scrollbar">
+          )}
+          <main
+            className={cn(
+              "flex-1 bg-background custom-scrollbar",
+              isChatRoute ? "min-h-0 overflow-hidden p-0" : "overflow-y-auto p-5 md:p-7"
+            )}
+          >
             {children}
           </main>
         </SidebarInset>

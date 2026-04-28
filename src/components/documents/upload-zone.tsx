@@ -69,6 +69,8 @@ export function UploadZone({ onUploadSuccess, compact = false }: UploadZoneProps
         description: `${file.name} added to the Archive.`,
       });
 
+      window.dispatchEvent(new Event("archive:documents-changed"));
+
       if (onUploadSuccess) {
         onUploadSuccess({
           documentId: data.documentId,

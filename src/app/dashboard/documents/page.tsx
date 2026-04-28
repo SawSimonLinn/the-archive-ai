@@ -5,18 +5,9 @@ import { useState, useEffect, useMemo } from "react";
 import { UploadZone } from "@/components/documents/upload-zone";
 import { DocumentList } from "@/components/documents/document-list";
 import { Document } from "@/lib/types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Plus, Search, Filter, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
@@ -54,6 +45,12 @@ export default function DocumentsPage() {
   };
 
   const totalSize = docs.reduce((acc, d) => acc + d.size, 0);
+  const filterOptions = [
+    { label: "All", value: null },
+    { label: "Ready", value: "ready" },
+    { label: "Processing", value: "processing" },
+    { label: "Error", value: "error" },
+  ];
 
   const filteredDocs = useMemo(() => {
     return docs.filter((doc) => {
@@ -84,23 +81,32 @@ export default function DocumentsPage() {
         )}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-12 border-2 border-foreground p-0 bg-muted rounded-none">
-          <TabsTrigger
-            value="manage"
-            className="h-full font-black uppercase tracking-[0.2em] text-sm data-[state=active]:bg-foreground data-[state=active]:text-background rounded-none transition-none"
+      <div className="w-full">
+        <div className="grid h-12 w-full grid-cols-2 border-2 border-foreground bg-muted p-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab("manage")}
+            className={cn(
+              "h-full font-black uppercase tracking-[0.2em] text-sm transition-none",
+              activeTab === "manage" ? "bg-foreground text-background" : "hover:bg-foreground/10"
+            )}
           >
             My Files
-          </TabsTrigger>
-          <TabsTrigger
-            value="upload"
-            className="h-full font-black uppercase tracking-[0.2em] text-sm data-[state=active]:bg-foreground data-[state=active]:text-background rounded-none transition-none"
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("upload")}
+            className={cn(
+              "h-full border-l-2 border-foreground font-black uppercase tracking-[0.2em] text-sm transition-none",
+              activeTab === "upload" ? "bg-foreground text-background" : "hover:bg-foreground/10"
+            )}
           >
             Upload
-          </TabsTrigger>
-        </TabsList>
+          </button>
+        </div>
 
-        <TabsContent value="manage" className="mt-5 space-y-5 animate-in fade-in slide-in-from-bottom-4">
+        {activeTab === "manage" && (
+        <div className="mt-5 space-y-5 animate-in fade-in slide-in-from-bottom-4">
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <div className="relative flex-1 w-full">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 opacity-40" />
@@ -112,47 +118,25 @@ export default function DocumentsPage() {
               />
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+              {filterOptions.map((option) => {
+                const active = statusFilter === option.value;
+                return (
                 <Button
+                  key={option.label}
                   variant="outline"
+                  onClick={() => setStatusFilter(option.value)}
                   className={cn(
-                    "h-11 px-5 border-2 border-foreground rounded-none font-black uppercase tracking-widest text-sm gap-2 transition-all",
-                    statusFilter ? "bg-primary text-foreground" : "hover:bg-foreground hover:text-background"
+                    "h-11 flex-1 sm:flex-none px-3 border-2 border-foreground rounded-none font-black uppercase tracking-widest text-xs gap-2 transition-all",
+                    active ? "bg-primary text-foreground" : "hover:bg-foreground hover:text-background"
                   )}
                 >
-                  <Filter className="h-4 w-4" /> {statusFilter ? statusFilter : "Filter"}
+                  {option.value === null ? <Filter className="h-4 w-4" /> : active ? <Check className="h-4 w-4" /> : null}
+                  {option.label}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64 border-4 border-foreground rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-0">
-                <DropdownMenuLabel className="font-mono text-[10px] font-black uppercase tracking-widest p-4 opacity-40">Filter by Status</DropdownMenuLabel>
-                <DropdownMenuSeparator className="h-1 bg-foreground" />
-                <DropdownMenuItem
-                  onClick={() => setStatusFilter(null)}
-                  className="p-4 font-black uppercase tracking-tighter text-sm flex justify-between items-center cursor-pointer focus:bg-primary"
-                >
-                  All Files {!statusFilter && <Check className="h-4 w-4" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setStatusFilter('ready')}
-                  className="p-4 font-black uppercase tracking-tighter text-sm flex justify-between items-center cursor-pointer focus:bg-primary"
-                >
-                  Ready {statusFilter === 'ready' && <Check className="h-4 w-4" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setStatusFilter('processing')}
-                  className="p-4 font-black uppercase tracking-tighter text-sm flex justify-between items-center cursor-pointer focus:bg-primary"
-                >
-                  Processing {statusFilter === 'processing' && <Check className="h-4 w-4" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setStatusFilter('error')}
-                  className="p-4 font-black uppercase tracking-tighter text-sm flex justify-between items-center cursor-pointer focus:bg-accent focus:text-accent-foreground"
-                >
-                  Error {statusFilter === 'error' && <Check className="h-4 w-4" />}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -166,14 +150,17 @@ export default function DocumentsPage() {
             </div>
             <DocumentList documents={filteredDocs} onDelete={handleDelete} />
           </div>
-        </TabsContent>
+        </div>
+        )}
 
-        <TabsContent value="upload" className="mt-5">
+        {activeTab === "upload" && (
+        <div className="mt-5">
           <div className="max-w-3xl mx-auto">
             <UploadZone onUploadSuccess={() => { setActiveTab("manage"); fetchDocs(); }} />
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+        )}
+      </div>
     </div>
   );
 }

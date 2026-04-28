@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { PDFParse } from 'pdf-parse';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { processDocumentForEmbeddings } from '@/ai/flows/document-embedding-processing';
 import { generateDocumentInitialAnalysis } from '@/ai/flows/document-initial-analysis';
 
 export const runtime = 'nodejs';
+
+const pdfWorkerSrc = pathToFileURL(
+  path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
+).href;
+
+// PDF.js defaults to "./pdf.worker.mjs"; in a Next server bundle that points
+// at .next/server/chunks instead of the installed pdfjs-dist worker file.
+PDFParse.setWorker(pdfWorkerSrc);
 
 export async function POST(req: NextRequest) {
   try {
