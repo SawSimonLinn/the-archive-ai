@@ -7,7 +7,9 @@ type PdfJsWorkerGlobal = typeof globalThis & {
   pdfjsWorker?: unknown;
 };
 
-let pdfWorkerReady: Promise<void> | null = null;
+type PdfParseModule = typeof import("pdf-parse");
+
+let pdfParseReady: Promise<PdfParseModule> | null = null;
 
 class DocumentTextError extends Error {
   constructor(
@@ -130,8 +132,7 @@ function extractDocxText(buffer: Buffer) {
 }
 
 async function extractPdfText(buffer: Buffer) {
-  await ensurePdfWorker();
-  const { PDFParse } = await import("pdf-parse");
+  const { PDFParse } = await loadPdfParse();
 
   const parser = new PDFParse({ data: buffer });
 
@@ -143,12 +144,26 @@ async function extractPdfText(buffer: Buffer) {
   }
 }
 
-function ensurePdfWorker() {
-  pdfWorkerReady ??= import("pdfjs-dist/legacy/build/pdf.worker.mjs").then(worker => {
-    (globalThis as PdfJsWorkerGlobal).pdfjsWorker = worker;
-  });
+async function loadPdfParse() {
+  pdfParseReady ??= configurePdfParse();
+  return pdfParseReady;
+}
 
-  return pdfWorkerReady;
+async function configurePdfParse() {
+  const pdfParse = await import("pdf-parse");
+
+  try {
+    const { getData } = await import("pdf-parse/worker");
+    pdfParse.PDFParse.setWorker(getData());
+    return pdfParse;
+  } catch (workerError) {
+    console.error("Bundled PDF worker setup failed:", workerError);
+  }
+
+  const worker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  (globalThis as PdfJsWorkerGlobal).pdfjsWorker = worker;
+
+  return pdfParse;
 }
 
 export function getDocumentExtension(file: File) {
