@@ -128,7 +128,10 @@ export function UploadZone({ onUploadSuccess, onLimitReached, compact = false }:
         }
       }
 
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message ?? 'Upload failed');
+      }
       const data = await res.json();
       stopProgress(true);
 
@@ -153,9 +156,13 @@ export function UploadZone({ onUploadSuccess, onLimitReached, compact = false }:
       if (onUploadSuccess) {
         onUploadSuccess(result);
       }
-    } catch {
+    } catch (error) {
       stopProgress(false);
-      toast({ variant: "destructive", title: "Upload Failed", description: "Could not process the file." });
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Could not process the file.",
+      });
     } finally {
       setUploading(false);
       setProgress(0);

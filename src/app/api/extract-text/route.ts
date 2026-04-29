@@ -1,24 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { PDFParse } from 'pdf-parse';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getAuthenticatedUser } from '@/lib/supabase-server';
 import { processDocumentForEmbeddings } from '@/ai/flows/document-embedding-processing';
 import { generateDocumentInitialAnalysis } from '@/ai/flows/document-initial-analysis';
 import { checkUploadRateLimit } from '@/lib/rate-limit';
 import { getUserPlan } from '@/lib/get-user-plan';
+import {
+  extractDocumentText,
+  getDocumentExtension,
+  toDocumentTextError,
+} from '@/lib/document-text';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
-
-const pdfWorkerSrc = pathToFileURL(
-  path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
-).href;
-
-PDFParse.setWorker(pdfWorkerSrc);
 
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser();
@@ -69,17 +66,15 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    let text = '';
-    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-      const parser = new PDFParse({ data: buffer });
-      try {
-        const result = await parser.getText();
-        text = result.text;
-      } finally {
-        await parser.destroy();
-      }
-    } else {
-      text = buffer.toString('utf-8');
+    let text: string;
+    try {
+      text = await extractDocumentText(file, buffer);
+    } catch (error) {
+      const textError = toDocumentTextError(error);
+      return NextResponse.json(
+        { error: textError.code, message: textError.message },
+        { status: textError.status },
+      );
     }
 
     const initialAnalysisPromise = generateDocumentInitialAnalysis({
@@ -88,12 +83,12 @@ export async function POST(req: NextRequest) {
     });
 
     // UUID-based path: no user-provided filename in storage, scoped per user
-    const ext = (file.name.split('.').pop() ?? 'bin').replace(/[^a-z0-9]/gi, '').toLowerCase();
+    const ext = getDocumentExtension(file);
     const storagePath = `${user.id}/${randomUUID()}.${ext}`;
 
     const { error: storageError } = await supabaseAdmin.storage
       .from('documents')
-      .upload(storagePath, buffer, { contentType: file.type });
+      .upload(storagePath, buffer, { contentType: file.type || 'application/octet-stream' });
     if (storageError) throw storageError;
 
     const { data: doc, error: insertError } = await supabaseAdmin
@@ -114,7 +109,7 @@ export async function POST(req: NextRequest) {
       initialAnalysisPromise,
     ]);
     if (chunks.length > 0) {
-      await supabaseAdmin.from('document_chunks').insert(
+      const { error: chunkInsertError } = await supabaseAdmin.from('document_chunks').insert(
         chunks.map((c, i) => ({
           document_id: doc.id,
           content: c.chunk,
@@ -122,6 +117,9 @@ export async function POST(req: NextRequest) {
           chunk_index: i,
         }))
       );
+      if (chunkInsertError) {
+        console.error(`Failed to insert chunks for document ${doc.id}:`, chunkInsertError);
+      }
     }
 
     return NextResponse.json({
@@ -132,6 +130,12 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('Text extraction error:', error);
-    return NextResponse.json({ error: 'Failed to extract text' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'upload_processing_failed',
+        message: 'Could not finish processing this upload.',
+      },
+      { status: 500 },
+    );
   }
 }

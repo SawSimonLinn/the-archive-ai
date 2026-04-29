@@ -145,6 +145,19 @@ This starts the Genkit developer UI for inspecting and testing AI flows locally.
 | Variable | Required | Description |
 |---|---|---|
 | `OPENAI_API_KEY` | Yes | OpenAI API key used for GPT-4o-mini and text embeddings |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase browser anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key for server-only admin operations |
+| `NEXT_PUBLIC_APP_URL` | Recommended | Fallback app origin for callbacks and billing redirects when the current host cannot be inferred |
+
+## Supabase Auth Redirects
+
+The app sends Google OAuth users back to the same host they started from. To support both local development and production, configure Supabase Auth like this:
+
+- Site URL: your production origin, for example `https://the-archive-ai-eosin.vercel.app`
+- Redirect URLs: add every callback origin you use, including `http://localhost:9002/auth/callback`, `https://the-archive-ai-eosin.vercel.app/auth/callback`, and your future custom domain callback such as `https://your-domain.com/auth/callback`
+
+For local development, keep using `http://localhost:9002/auth`. For Vercel or a custom domain, use that deployed `/auth` URL. The code derives the callback origin from the browser/request host, with `NEXT_PUBLIC_APP_URL` only as a fallback.
 
 ---
 

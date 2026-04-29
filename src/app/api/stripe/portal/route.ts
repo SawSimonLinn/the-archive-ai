@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { getAuthenticatedUser } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getRequestOrigin } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const session = await stripe.billingPortal.sessions.create({
     customer: sub.stripe_customer_id,
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings`,
+    return_url: `${getRequestOrigin(req)}/dashboard/settings`,
   });
 
   return NextResponse.json({ url: session.url });

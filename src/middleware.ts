@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getRequestOrigin } from "@/lib/site-url";
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({
@@ -29,12 +30,12 @@ export async function middleware(request: NextRequest) {
 
   // Redirect logged-in users away from /auth to dashboard
   if (session && request.nextUrl.pathname === "/auth") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/dashboard", getRequestOrigin(request)));
   }
 
   // Redirect unauthenticated users away from /dashboard to /auth
   if (!session && request.nextUrl.pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(new URL("/auth", request.url));
+    return NextResponse.redirect(new URL("/auth", getRequestOrigin(request)));
   }
 
   return response;

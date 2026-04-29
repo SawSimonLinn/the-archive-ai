@@ -1,7 +1,7 @@
 'use server';
 
 import { openai } from '@/ai/genkit';
-import { embed } from 'ai';
+import { embedMany } from 'ai';
 import { z } from 'zod';
 
 const DocumentEmbeddingProcessingInputSchema = z.object({
@@ -19,7 +19,9 @@ const ChunkEmbeddingSchema = z.object({
 const DocumentEmbeddingProcessingOutputSchema = z.array(ChunkEmbeddingSchema);
 export type DocumentEmbeddingProcessingOutput = z.infer<typeof DocumentEmbeddingProcessingOutputSchema>;
 
-function chunkText(text: string, maxChunkSize: number = 1000): string[] {
+const MAX_EMBEDDING_CHUNKS = 250;
+
+function chunkText(text: string, maxChunkSize: number = 1500): string[] {
   const chunks: string[] = [];
   const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 0);
   let currentChunk = '';
@@ -51,22 +53,24 @@ export async function processDocumentForEmbeddings(
   input: DocumentEmbeddingProcessingInput
 ): Promise<DocumentEmbeddingProcessingOutput> {
   const { documentId, documentContent } = DocumentEmbeddingProcessingInputSchema.parse(input);
-  const textChunks = chunkText(documentContent);
+  const textChunks = chunkText(documentContent).slice(0, MAX_EMBEDDING_CHUNKS);
 
-  const results = await Promise.all(
-    textChunks.map(async (chunk) => {
-      try {
-        const { embedding } = await embed({
-          model: openai.embedding('text-embedding-3-small'),
-          value: chunk,
-        });
-        return { documentId, chunk, embedding };
-      } catch (error) {
-        console.error(`Error generating embedding for chunk of document ${documentId}:`, error);
-        return null;
-      }
-    })
-  );
+  if (textChunks.length === 0) return [];
 
-  return results.filter((r): r is z.infer<typeof ChunkEmbeddingSchema> => r !== null);
+  try {
+    const { embeddings } = await embedMany({
+      model: openai.embedding('text-embedding-3-small'),
+      values: textChunks,
+      maxParallelCalls: 2,
+    });
+
+    return embeddings.map((embedding, index) => ({
+      documentId,
+      chunk: textChunks[index],
+      embedding,
+    }));
+  } catch (error) {
+    console.error(`Error generating embeddings for document ${documentId}:`, error);
+    return [];
+  }
 }

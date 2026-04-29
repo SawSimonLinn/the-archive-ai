@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripePriceId, stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getAuthenticatedUser } from "@/lib/supabase-server";
+import { getRequestOrigin } from "@/lib/site-url";
 
 export const runtime = "nodejs";
 
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
 
   try {
+    const appOrigin = getRequestOrigin(req);
     const { data: existingSubscription } = await supabaseAdmin
       .from("user_subscriptions")
       .select("stripe_customer_id")
@@ -81,8 +83,8 @@ export async function POST(req: NextRequest) {
         metadata: { userId: user.id, planId },
       },
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?upgraded=1&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/plans`,
+      success_url: `${appOrigin}/dashboard/settings?upgraded=1&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appOrigin}/plans`,
     });
 
     return NextResponse.json({ url: session.url });

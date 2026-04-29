@@ -1,11 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { getRequestOrigin, getSafeRedirectPath } from "@/lib/site-url";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = getRequestOrigin(request);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = getSafeRedirectPath(searchParams.get("next"));
 
   if (code) {
     const cookieStore = await cookies();
@@ -28,9 +30,9 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(new URL(next, origin));
     }
   }
 
-  return NextResponse.redirect(`${origin}/auth?error=auth_error`);
+  return NextResponse.redirect(new URL("/auth?error=auth_error", origin));
 }
