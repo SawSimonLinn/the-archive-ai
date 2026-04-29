@@ -44,6 +44,9 @@ export function SiteHeader() {
           <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/#system">
             Features
           </Link>
+          <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/plans">
+            Pricing
+          </Link>
           {isLoggedIn ? (
             <Link href="/dashboard">
               <Button variant="default" className="rounded-none px-8 font-black uppercase tracking-tighter border-2 border-foreground hover:bg-background hover:text-foreground transition-all gap-2">

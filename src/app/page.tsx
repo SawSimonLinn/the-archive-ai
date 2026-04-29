@@ -2,18 +2,24 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { 
-  ArrowRight, 
+import {
+  ArrowRight,
   Fingerprint,
   Archive,
   Command,
   ShieldCheck,
   Layers,
-  Zap
+  Zap,
+  Check,
+  Shield,
+  Users,
+  Sparkles
 } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { SiteHeader } from '@/components/layout/site-header';
 import { SiteFooter } from '@/components/layout/site-footer';
+import { PLANS } from '@/lib/plans';
+import { cn } from '@/lib/utils';
 
 export default function Home() {
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg');
@@ -146,6 +152,98 @@ export default function Home() {
                   <p className="text-sm leading-relaxed text-muted-foreground group-hover:text-primary-foreground font-medium">{feat.desc}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section id="pricing" className="w-full py-24 border-b-2 border-foreground">
+          <div className="container px-6 mx-auto">
+            <div className="mb-16 space-y-4">
+              <span className="font-mono text-xs font-bold uppercase tracking-[0.5em] text-primary">Pricing</span>
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-headline font-black uppercase tracking-tighter">
+                Start Free<span className="text-primary">.</span>
+              </h2>
+              <p className="text-base sm:text-lg font-medium opacity-60 max-w-lg">
+                Upgrade when your archive grows. No hidden fees.
+              </p>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-3 mb-10">
+              {(["free", "pro", "team"] as const).map((planId) => {
+                const plan = PLANS[planId];
+                const Icon = planId === "free" ? Shield : planId === "pro" ? Zap : Users;
+                const isPro = planId === "pro";
+
+                return (
+                  <div
+                    key={planId}
+                    className={cn(
+                      "relative flex flex-col border-2 p-6 gap-6",
+                      isPro
+                        ? "border-primary bg-card shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+                        : "border-foreground bg-card"
+                    )}
+                  >
+                    {isPro && (
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-primary px-3 py-0.5 text-[9px] font-black uppercase tracking-widest text-foreground border-2 border-foreground whitespace-nowrap">
+                        <Sparkles className="inline h-2.5 w-2.5 mr-1" />
+                        Most Popular
+                      </div>
+                    )}
+
+                    <div className="space-y-3">
+                      <div className={cn(
+                        "flex h-10 w-10 items-center justify-center border-2 border-foreground",
+                        isPro ? "bg-primary" : "bg-muted"
+                      )}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="font-headline font-black text-xl uppercase tracking-tighter">{plan.name}</p>
+                        <div className="flex items-baseline gap-1 mt-1">
+                          {plan.price === 0 ? (
+                            <span className="font-headline font-black text-4xl tracking-tighter">Free</span>
+                          ) : (
+                            <>
+                              <span className="font-headline font-black text-4xl tracking-tighter">${plan.price}</span>
+                              <span className="font-mono text-xs font-bold uppercase tracking-widest opacity-50">/mo</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <ul className="space-y-2.5 flex-1">
+                      {plan.features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-2.5 text-sm font-medium">
+                          <Check className={cn("h-4 w-4 shrink-0 mt-0.5", isPro ? "text-primary" : "text-foreground")} />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+
+                    <Link href="/auth">
+                      <Button
+                        className={cn(
+                          "w-full h-11 rounded-none border-2 border-foreground font-black uppercase tracking-tighter text-sm transition-all",
+                          isPro
+                            ? "bg-primary text-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+                            : "bg-foreground text-background hover:bg-foreground/80"
+                        )}
+                      >
+                        {plan.price === 0 ? "Get Started" : `Upgrade to ${plan.name}`} <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="text-center">
+              <Link href="/plans" className="inline-flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity underline underline-offset-4">
+                View full comparison & FAQ <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
           </div>
         </section>

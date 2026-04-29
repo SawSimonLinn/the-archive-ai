@@ -1,48 +1,100 @@
 "use client"
 
 import { useEffect, useState } from "react";
-import { Files, MessageSquare, Database, ArrowRight, Zap, ShieldCheck, Activity } from "lucide-react";
+import { Files, Database, ArrowRight, Zap, ShieldCheck, Activity, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/lib/supabase";
+import { formatPlanLimit } from "@/lib/billing";
+import { useBillingPlan } from "@/hooks/use-billing-plan";
 
 const STORAGE_LIMIT_MB = 50;
 
+type DashboardDocument = {
+  id: string;
+  name: string;
+  size: number | null;
+  created_at: string;
+};
+
 export default function DashboardOverview() {
-  const [docCount, setDocCount] = useState<number | null>(null);
-  const [storageMB, setStorageMB] = useState<number | null>(null);
-  const [readyCount, setReadyCount] = useState<number | null>(null);
+  const [documents, setDocuments] = useState<DashboardDocument[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { plan, isLoading: isPlanLoading } = useBillingPlan();
 
   useEffect(() => {
-    supabase
-      .from("documents")
-      .select("size")
-      .then(({ data }) => {
-        if (!data) return;
-        setDocCount(data.length);
-        setStorageMB(data.reduce((sum, d) => sum + (d.size ?? 0), 0) / 1024 / 1024);
-        setReadyCount(data.length);
-      });
+    let cancelled = false;
+
+    const loadDocuments = async () => {
+      try {
+        const res = await fetch('/api/documents', { cache: 'no-store' });
+        if (!res.ok) throw new Error('Failed to load documents');
+
+        const data = await res.json();
+        if (!cancelled) {
+          setDocuments(data.documents ?? []);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    const handleDocumentsChanged = (event: Event) => {
+      const document = (event as CustomEvent<{ id: string; name: string } | undefined>).detail;
+
+      if (document?.id && document.name) {
+        setDocuments((currentDocs) => [
+          { id: document.id, name: document.name, size: null, created_at: new Date().toISOString() },
+          ...currentDocs.filter((doc) => doc.id !== document.id),
+        ]);
+      }
+
+      void loadDocuments();
+    };
+
+    void loadDocuments();
+    window.addEventListener("archive:documents-changed", handleDocumentsChanged);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("archive:documents-changed", handleDocumentsChanged);
+    };
   }, []);
 
   const fmt = (n: number | null, decimals = 0) =>
     n === null ? "—" : n.toLocaleString(undefined, { maximumFractionDigits: decimals });
 
+  const docCount = documents.length;
+  const documentLimit = plan.maxDocuments;
+  const documentUsageLabel = isPlanLoading
+    ? "—"
+    : `${fmt(docCount)} / ${formatPlanLimit(documentLimit)}`;
+  const atDocumentLimit = !isPlanLoading && documentLimit !== null && docCount >= documentLimit;
+  const storageMB = documents.reduce((sum, doc) => sum + (doc.size ?? 0), 0) / 1024 / 1024;
+  const readyCount = docCount;
+  const latestDocument = documents[0] ?? null;
+  const chatHref = latestDocument ? `/dashboard/chat?docId=${latestDocument.id}` : "/dashboard/chat";
+
   const storageLabel =
-    storageMB === null
-      ? "— / 50 GB"
+    isLoading
+      ? "— / 50 MB"
       : `${fmt(storageMB, 1)} / ${STORAGE_LIMIT_MB} MB`;
 
   const storagePct =
-    storageMB === null ? "—" : `${((storageMB / STORAGE_LIMIT_MB) * 100).toFixed(1)}% Used`;
+    isLoading ? "—" : `${((storageMB / STORAGE_LIMIT_MB) * 100).toFixed(1)}% Used`;
+
+  const statusLabel = isLoading
+    ? "Status: Syncing Archive"
+    : docCount > 0
+      ? `Status: ${docCount} ${docCount === 1 ? "File" : "Files"} Indexed`
+      : "Status: Awaiting Upload";
 
   const stats = [
     {
       label: "Indexed Files",
-      value: fmt(docCount),
+      value: isLoading ? "—" : documentUsageLabel,
       icon: Database,
       color: "text-primary",
-      trend: docCount === null ? "" : `${docCount === 1 ? "1 Document" : `${docCount} Documents`}`,
+      trend: isPlanLoading ? "Checking Plan" : `${plan.name} Plan`,
     },
     {
       label: "Storage Used",
@@ -53,31 +105,38 @@ export default function DashboardOverview() {
     },
     {
       label: "Ready to Query",
-      value: fmt(readyCount),
+      value: isLoading ? "—" : fmt(readyCount),
       icon: Activity,
       color: "text-accent",
-      trend: "Live & Indexed",
+      trend: docCount > 0 ? "Live & Indexed" : "No Files Yet",
     },
   ];
+
+  const workflowSteps = docCount > 0
+    ? [
+        { step: "01", title: "Open Saved Chats", desc: "Return to any document from the left sidebar." },
+        { step: "02", title: "Ask Follow-ups", desc: "Continue the saved conversation with full chat history." },
+        { step: "03", title: "Add More Files", desc: "Upload another document when your archive needs more context." },
+      ]
+    : [
+        { step: "01", title: "Upload Files", desc: "Add your PDFs or documents to the library." },
+        { step: "02", title: "Wait a Second", desc: "The AI automatically reads and indexes your files." },
+        { step: "03", title: "Start Chatting", desc: "Ask questions about your data in plain English." },
+      ];
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-l-4 border-primary pl-5">
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-2 bg-foreground text-background px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-[0.3em]">
-            Status: All Systems Ready
+            {statusLabel}
           </div>
           <h2 className="text-3xl lg:text-4xl font-headline font-black uppercase leading-tight tracking-tighter">System Dashboard<span className="text-primary">.</span></h2>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <Link href="/dashboard/documents">
-            <Button variant="outline" className="h-10 px-6 border-2 border-foreground rounded-none font-black uppercase tracking-tighter hover:bg-foreground hover:text-background transition-all text-sm">
-              View Documents
-            </Button>
-          </Link>
-          <Link href="/dashboard/chat">
+          <Link href={chatHref}>
             <Button className="h-10 px-6 bg-primary text-primary-foreground border-2 border-foreground rounded-none font-black uppercase tracking-tighter shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all text-sm">
-              Chat with AI
+              {latestDocument ? "Continue Chat" : "Chat with AI"}
             </Button>
           </Link>
         </div>
@@ -98,17 +157,32 @@ export default function DashboardOverview() {
         ))}
       </div>
 
+      {!isLoading && atDocumentLimit && (
+        <div className="border-4 border-destructive bg-destructive/5 p-4 flex items-center justify-between gap-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center bg-destructive">
+              <AlertTriangle className="h-5 w-5 text-destructive-foreground" />
+            </div>
+            <div>
+              <p className="font-headline font-black text-sm uppercase tracking-tighter">Document Limit Reached</p>
+              <p className="font-mono text-[9px] font-bold uppercase tracking-widest opacity-60">You've used all {formatPlanLimit(documentLimit)} document slots on {plan.name}. Upgrade to keep adding files.</p>
+            </div>
+          </div>
+          <Link href="/plans" className="shrink-0">
+            <Button className="h-10 px-5 bg-destructive text-destructive-foreground border-2 border-foreground rounded-none font-black uppercase tracking-tighter shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all text-xs">
+              <Zap className="h-4 w-4 mr-2" /> Upgrade
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <div className="grid gap-5 md:grid-cols-2">
         <section className="space-y-3">
           <h3 className="text-lg font-headline font-black uppercase tracking-tight flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" /> How it Works
           </h3>
           <div className="space-y-2">
-            {[
-              { step: "01", title: "Upload Files", desc: "Add your PDFs or documents to the library." },
-              { step: "02", title: "Wait a Second", desc: "The AI automatically reads and indexes your files." },
-              { step: "03", title: "Start Chatting", desc: "Ask questions about your data in plain English." },
-            ].map((step, i) => (
+            {workflowSteps.map((step, i) => (
               <div key={i} className="flex gap-4 p-4 border-2 border-foreground bg-muted/30 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-2 font-mono text-[32px] font-black opacity-5 transition-transform group-hover:scale-150">{step.step}</div>
                 <div className="w-9 h-9 border-2 border-foreground bg-foreground text-background flex items-center justify-center shrink-0 font-black text-sm">
@@ -136,12 +210,12 @@ export default function DashboardOverview() {
             </p>
             <div className="p-3 border-2 border-primary/40 bg-primary/10 font-mono text-[10px] font-bold uppercase tracking-widest leading-loose">
               Security: AES-256 <br />
-              AI Model: GPT-4o <br />
+              Files Indexed: {isLoading ? "Syncing" : docCount} <br />
               Data Policy: Private & Encrypted
             </div>
-            <Link href="/dashboard/chat">
+            <Link href={chatHref}>
               <Button variant="secondary" className="w-full h-11 rounded-none border-2 border-foreground bg-primary text-primary-foreground font-black uppercase text-sm shadow-[4px_4px_0px_0px_rgba(255,255,255,0.1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all">
-                Try Chatting <ArrowRight className="ml-2 h-4 w-4" />
+                {latestDocument ? "Continue Latest Chat" : "Try Chatting"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>

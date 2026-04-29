@@ -3,13 +3,7 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   /* config options here */
   serverExternalPackages: ['pdf-parse', 'pdfjs-dist'],
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  images: {
+images: {
     remotePatterns: [
       {
         protocol: 'https',

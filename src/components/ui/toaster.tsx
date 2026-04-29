@@ -15,14 +15,15 @@ export function Toaster() {
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
+      {toasts.map(function ({ id, title, description, action, variant, ...props }) {
         return (
-          <Toast key={id} {...props}>
-            <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
-                <ToastDescription>{description}</ToastDescription>
-              )}
+          <Toast key={id} variant={variant} {...props}>
+            <div className="flex items-stretch gap-3 w-full">
+              <div className={`w-1 shrink-0 ${variant === "destructive" ? "bg-red-600" : "bg-primary"}`} />
+              <div className="flex flex-col gap-0.5 py-0.5">
+                {title && <ToastTitle>{title}</ToastTitle>}
+                {description && <ToastDescription>{description}</ToastDescription>}
+              </div>
             </div>
             {action}
             <ToastClose />

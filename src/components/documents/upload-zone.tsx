@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload, File, X, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,13 +20,48 @@ export interface UploadResult {
 
 interface UploadZoneProps {
   onUploadSuccess?: (result: UploadResult) => void;
+  onLimitReached?: () => void;
   compact?: boolean;
 }
 
-export function UploadZone({ onUploadSuccess, compact = false }: UploadZoneProps) {
+const LOADING_PHASES = [
+  "Reading document",
+  "Extracting content",
+  "Parsing structure",
+  "Generating summary",
+  "Analyzing key concepts",
+  "Building insights",
+];
+
+function AnimatedStatus({ phase }: { phase: string }) {
+  const [dots, setDots] = useState("");
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setDots(d => {
+        if (d === "...") return "";
+        return d + ".";
+      });
+    }, 380);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <span>
+      {phase}
+      <span className="inline-block w-6 text-left">{dots}</span>
+    </span>
+  );
+}
+
+export function UploadZone({ onUploadSuccess, onLimitReached, compact = false }: UploadZoneProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [phaseIndex, setPhaseIndex] = useState(0);
+  const progressRef = useRef(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const phaseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles(prev => [...prev, ...acceptedFiles]);
@@ -46,42 +81,80 @@ export function UploadZone({ onUploadSuccess, compact = false }: UploadZoneProps
     setFiles(files.filter(f => f.name !== name));
   };
 
+  const startProgress = () => {
+    progressRef.current = 0;
+    setProgress(0);
+    setPhaseIndex(0);
+
+    intervalRef.current = setInterval(() => {
+      progressRef.current = Math.min(
+        progressRef.current + (Math.random() * 1.8 + 0.4),
+        88
+      );
+      setProgress(Math.floor(progressRef.current));
+    }, 200);
+
+    phaseIntervalRef.current = setInterval(() => {
+      setPhaseIndex(i => (i + 1) % LOADING_PHASES.length);
+    }, 2200);
+  };
+
+  const stopProgress = (success: boolean) => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (phaseIntervalRef.current) clearInterval(phaseIntervalRef.current);
+    if (success) {
+      setProgress(100);
+    }
+  };
+
   const handleUpload = async () => {
     if (files.length === 0) return;
     setUploading(true);
-    setProgress(10);
+    startProgress();
 
     const file = files[0];
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      setProgress(30);
       const res = await fetch('/api/extract-text', { method: 'POST', body: formData });
-      setProgress(90);
+
+      if (res.status === 402 || res.status === 429) {
+        const data = await res.json();
+        if (data.error === 'document_limit_reached' || data.error === 'rate_limit_reached') {
+          stopProgress(false);
+          onLimitReached?.();
+          return;
+        }
+      }
 
       if (!res.ok) throw new Error('Upload failed');
       const data = await res.json();
-      setProgress(100);
+      stopProgress(true);
 
       toast({
         title: "File Processed",
         description: `${file.name} added to the Archive.`,
       });
 
-      window.dispatchEvent(new Event("archive:documents-changed"));
+      const result: UploadResult = {
+        documentId: data.documentId,
+        name: file.name,
+        text: data.text,
+        summary: data.summary ?? 'No content-specific TL;DR is available for this document yet.',
+        suggestedQuestions: data.suggestedQuestions ?? [],
+        file,
+      };
+
+      window.dispatchEvent(new CustomEvent("archive:documents-changed", {
+        detail: { id: result.documentId, name: result.name },
+      }));
 
       if (onUploadSuccess) {
-        onUploadSuccess({
-          documentId: data.documentId,
-          name: file.name,
-          text: data.text,
-          summary: data.summary ?? 'No content-specific TL;DR is available for this document yet.',
-          suggestedQuestions: data.suggestedQuestions ?? [],
-          file,
-        });
+        onUploadSuccess(result);
       }
     } catch {
+      stopProgress(false);
       toast({ variant: "destructive", title: "Upload Failed", description: "Could not process the file." });
     } finally {
       setUploading(false);
@@ -152,7 +225,7 @@ export function UploadZone({ onUploadSuccess, compact = false }: UploadZoneProps
           {uploading ? (
             <div className="space-y-3 p-4 border-4 border-foreground bg-muted">
               <div className="flex justify-between items-center font-mono text-[9px] font-black uppercase tracking-widest">
-                <span>Reading + Preparing TL;DR...</span>
+                <AnimatedStatus phase={LOADING_PHASES[phaseIndex]} />
                 <span className="text-primary">{progress}%</span>
               </div>
               <Progress value={progress} className="h-3 rounded-none border-2 border-foreground bg-background" />

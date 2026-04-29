@@ -1,10 +1,12 @@
 
 "use client"
 
-import { useCallback, useState, useRef, useEffect } from "react";
+import { Fragment, useCallback, useState, useRef, useEffect } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Send,
   User,
@@ -21,12 +23,14 @@ import {
   ArrowLeft,
   Sparkles,
   Eye,
-  X
+  X,
+  Lock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ragQueryResponseGeneration } from "@/ai/flows/rag-query-response-generation";
 import { searchDocumentChunks } from "@/ai/flows/vector-search";
 import { Message } from "@/lib/types";
+import { formatPlanLimit } from "@/lib/billing";
 import {
   Dialog,
   DialogContent,
@@ -36,13 +40,22 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { UploadZone, UploadResult } from "@/components/documents/upload-zone";
-import { supabase } from "@/lib/supabase";
+import { UpgradeModal } from "@/components/upgrade-modal";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useRouter } from "next/navigation";
+import type { UpgradeReason } from "@/components/upgrade-modal";
+import { useBillingPlan } from "@/hooks/use-billing-plan";
 
 type StoredDocumentRef = {
   id: string;
   name: string;
+};
+
+type SavedChatMessage = {
+  id: string;
+  role: Message["role"];
+  content: string;
+  created_at: string;
 };
 
 const CURRENT_DOCUMENT_KEY = "archive.currentDocument";
@@ -87,21 +100,203 @@ function buildInitialMessage(documentName: string, includeSummaryNote = false): 
   };
 }
 
-async function saveChatMessage(documentId: string, role: Message["role"], content: string) {
+async function saveChatMessage(documentId: string, role: Message["role"], content: string): Promise<{ rateLimited: boolean }> {
   const res = await fetch('/api/chat-messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ documentId, role, content }),
   });
 
+  if (res.status === 429) {
+    return { rateLimited: true };
+  }
+
   if (!res.ok) {
     const data = await res.json().catch(() => null);
     throw new Error(data?.error ?? 'Failed to save chat message');
   }
+
+  return { rateLimited: false };
+}
+
+function normalizeMarkdown(content: string) {
+  return content
+    .trim()
+    .replace(/\s+(\d+\.\s+\*\*)/g, '\n\n$1')
+    .replace(/:\s+-\s+/g, ':\n- ')
+    .replace(/\s+-\s+(\*\*)/g, '\n- $1');
+}
+
+function renderInlineMarkdown(text: string) {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index} className="font-black">{part.slice(2, -2)}</strong>;
+    }
+
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={index} className="border border-foreground/20 bg-background px-1 py-0.5 font-mono text-[0.9em]">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+
+    return <Fragment key={index}>{part}</Fragment>;
+  });
+}
+
+function MarkdownMessage({ content }: { content: string }) {
+  const blocks: ReactNode[] = [];
+  const lines = normalizeMarkdown(content).split('\n');
+  let paragraph: string[] = [];
+  let listItems: ReactNode[] = [];
+  let listType: 'ol' | 'ul' | null = null;
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+
+    blocks.push(
+      <p key={`p-${blocks.length}`} className="mb-3 last:mb-0">
+        {renderInlineMarkdown(paragraph.join(' '))}
+      </p>
+    );
+    paragraph = [];
+  };
+
+  const flushList = () => {
+    if (!listType || listItems.length === 0) return;
+
+    const ListTag = listType;
+    blocks.push(
+      <ListTag
+        key={`list-${blocks.length}`}
+        className={cn(
+          "mb-4 space-y-2 pl-5 last:mb-0",
+          listType === 'ol' ? "list-decimal" : "list-disc"
+        )}
+      >
+        {listItems}
+      </ListTag>
+    );
+    listItems = [];
+    listType = null;
+  };
+
+  const pushListItem = (type: 'ol' | 'ul', text: string) => {
+    flushParagraph();
+    if (listType && listType !== type) flushList();
+    listType = type;
+    listItems.push(
+      <li key={`li-${blocks.length}-${listItems.length}`} className="pl-1">
+        {renderInlineMarkdown(text)}
+      </li>
+    );
+  };
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushParagraph();
+      flushList();
+      return;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      blocks.push(
+        <h3 key={`h-${blocks.length}`} className="mb-3 font-headline text-base font-black uppercase tracking-tighter">
+          {renderInlineMarkdown(heading[2])}
+        </h3>
+      );
+      return;
+    }
+
+    const ordered = line.match(/^\d+\.\s+(.+)$/);
+    if (ordered) {
+      pushListItem('ol', ordered[1]);
+      return;
+    }
+
+    const unordered = line.match(/^[-*]\s+(.+)$/);
+    if (unordered) {
+      pushListItem('ul', unordered[1]);
+      return;
+    }
+
+    flushList();
+    paragraph.push(line);
+  });
+
+  flushParagraph();
+  flushList();
+
+  return <div className="max-w-none text-sm leading-relaxed">{blocks}</div>;
+}
+
+function ChatWindowSkeleton() {
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-4 border-foreground bg-card">
+      <div className="flex shrink-0 flex-col gap-3 border-b-4 border-foreground bg-primary px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <SidebarTrigger className="h-9 w-9 shrink-0 rounded-none border-2 border-foreground bg-background hover:bg-foreground hover:text-background" />
+          <Skeleton className="h-9 w-9 shrink-0 rounded-none border-2 border-foreground bg-foreground/30" />
+          <div className="min-w-0 space-y-2">
+            <Skeleton className="h-4 w-16 rounded-none bg-foreground/25" />
+            <Skeleton className="h-3 w-44 rounded-none bg-foreground/20" />
+          </div>
+        </div>
+
+        <div className="grid w-full grid-cols-4 gap-2 lg:flex lg:w-auto lg:items-center">
+          {[0, 1, 2, 3].map((item) => (
+            <Skeleton
+              key={item}
+              className="h-10 rounded-none border-2 border-foreground bg-background/55 lg:w-28"
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:32px_32px]">
+        <div className="space-y-5 p-4 md:p-6">
+          {[0, 1, 2].map((item) => {
+            const isUser = item === 1;
+
+            return (
+              <div
+                key={item}
+                className={cn(
+                  "flex max-w-[94%] gap-3",
+                  isUser ? "ml-auto flex-row-reverse" : "mr-auto"
+                )}
+              >
+                <Skeleton className="h-10 w-10 shrink-0 rounded-none border-2 border-foreground bg-primary/60 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]" />
+                <div className="flex-1 border-2 border-foreground bg-muted/90 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] md:p-5">
+                  <Skeleton className="mb-3 h-4 w-11/12 rounded-none bg-foreground/20" />
+                  <Skeleton className="mb-3 h-4 w-4/5 rounded-none bg-foreground/20" />
+                  {!isUser && <Skeleton className="h-4 w-2/3 rounded-none bg-foreground/20" />}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t-4 border-foreground bg-card p-4">
+        <div className="flex items-center gap-3 md:gap-4">
+          <Skeleton className="h-14 flex-1 rounded-none border-4 border-foreground bg-muted" />
+          <Skeleton className="h-14 w-14 rounded-none border-4 border-foreground bg-primary/60" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const router = useRouter();
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(initialDocId ?? null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -110,13 +305,33 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const [activeFileUrl, setActiveFileUrl] = useState<string | null>(null);
   const [activeFileContent, setActiveFileContent] = useState<string | null>(null);
+  const [isChatLoading, setIsChatLoading] = useState(false);
   const [documentSummary, setDocumentSummary] = useState<string | null>(null);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
   const [showTLDR, setShowTLDR] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; reason: UpgradeReason }>({ open: false, reason: "document_limit" });
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [previousDocument, setPreviousDocument] = useState<StoredDocumentRef | null>(null);
+  const [docCount, setDocCount] = useState<number | null>(null);
+  const { plan, isLoading: isPlanLoading } = useBillingPlan();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchDocCount = async () => {
+      const res = await fetch('/api/documents', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      setDocCount((data.documents ?? []).length);
+    };
+
+    void fetchDocCount();
+
+    const handleDocumentsChanged = () => void fetchDocCount();
+    window.addEventListener("archive:documents-changed", handleDocumentsChanged);
+    return () => window.removeEventListener("archive:documents-changed", handleDocumentsChanged);
+  }, []);
 
   const rememberActiveDocument = useCallback((document: StoredDocumentRef, fallbackPrevious?: StoredDocumentRef | null) => {
     const currentDocument = fallbackPrevious ?? readStoredDocument(CURRENT_DOCUMENT_KEY);
@@ -149,6 +364,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     setActiveDocumentId(null);
     setActiveFileUrl(null);
     setActiveFileContent(null);
+    setIsChatLoading(false);
     setDocumentSummary(null);
     setIsAnalysisLoading(false);
     setSuggestedQuestions([]);
@@ -190,50 +406,86 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   }, []);
 
   useEffect(() => {
-    if (!initialDocId) {
-      if (activeDocumentId) resetChatContext(false);
-      return;
+    if (initialDocId) {
+      setSelectedDocumentId(initialDocId);
     }
   }, [initialDocId]);
 
+  useEffect(() => {
+    const handleActiveDocumentChange = (event: Event) => {
+      setSelectedDocumentId((event as CustomEvent<string | null>).detail ?? null);
+    };
+    const handlePopState = () => {
+      setSelectedDocumentId(new URLSearchParams(window.location.search).get("docId"));
+    };
+
+    window.addEventListener("archive:active-document-changed", handleActiveDocumentChange);
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("archive:active-document-changed", handleActiveDocumentChange);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDocumentId) {
+      if (activeDocumentId) resetChatContext(false);
+      setIsChatLoading(false);
+      return;
+    }
+  }, [selectedDocumentId, activeDocumentId, resetChatContext]);
+
   // Load document + chat history when a doc is selected from the sidebar
   useEffect(() => {
-    if (!initialDocId) return;
-    if (activeDocumentId === initialDocId && activeFile) return;
+    if (!selectedDocumentId) return;
+    if (activeDocumentId === selectedDocumentId && activeFile) return;
 
     let cancelled = false;
 
     const load = async () => {
+      setIsChatLoading(true);
       setIsAnalysisLoading(true);
-      const { data: doc } = await supabase
-        .from('documents')
-        .select('name')
-        .eq('id', initialDocId)
-        .single();
 
-      if (!doc || cancelled) {
-        if (!cancelled) setIsAnalysisLoading(false);
+      let chatData: {
+        document: StoredDocumentRef;
+        messages: SavedChatMessage[];
+      };
+
+      try {
+        const chatRes = await fetch(`/api/documents/${selectedDocumentId}/chat`, { cache: 'no-store' });
+        if (!chatRes.ok) throw new Error('Could not load document chat');
+        chatData = await chatRes.json();
+      } catch {
+        if (!cancelled) {
+          toast({
+            variant: "destructive",
+            title: "Chat Load Failed",
+            description: "Could not load the saved document chat.",
+          });
+          setIsChatLoading(false);
+          setIsAnalysisLoading(false);
+        }
         return;
       }
 
+      if (cancelled) return;
+
+      const doc = chatData.document;
+      const msgs = chatData.messages ?? [];
+
       setActiveFile(doc.name);
-      setActiveDocumentId(initialDocId);
-      rememberActiveDocument({ id: initialDocId, name: doc.name });
+      setActiveDocumentId(selectedDocumentId);
+      rememberActiveDocument({ id: selectedDocumentId, name: doc.name });
       setActiveFileUrl(null);
       setActiveFileContent(null);
       setDocumentSummary(null);
       setSuggestedQuestions([]);
 
-      const { data: msgs } = await supabase
-        .from('chat_messages')
-        .select('id, role, content, created_at')
-        .eq('document_id', initialDocId)
-        .order('created_at', { ascending: true });
-
-      if (msgs && msgs.length > 0) {
+      if (msgs.length > 0) {
         setMessages(msgs.map(m => ({
           id: m.id,
-          role: m.role as 'user' | 'assistant',
+          role: m.role,
           content: m.content,
           timestamp: new Date(m.created_at),
           sources: m.role === 'assistant' ? [doc.name] : undefined,
@@ -241,13 +493,15 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
       } else {
         const initialMessage = buildInitialMessage(doc.name);
         setMessages([initialMessage]);
-        void saveChatMessage(initialDocId, initialMessage.role, initialMessage.content).catch((error) => {
+        void saveChatMessage(selectedDocumentId, initialMessage.role, initialMessage.content).catch((error) => {
           console.error('Failed to save initial chat message:', error);
         });
       }
 
+      setIsChatLoading(false);
+
       try {
-        const res = await fetch(`/api/documents/${initialDocId}/analysis`);
+        const res = await fetch(`/api/documents/${selectedDocumentId}/analysis`);
         if (!res.ok) throw new Error('Could not load document analysis');
         const analysis = await res.json();
         if (cancelled) return;
@@ -269,7 +523,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [initialDocId, activeDocumentId, activeFile, rememberActiveDocument]);
+  }, [selectedDocumentId, activeDocumentId, activeFile, rememberActiveDocument]);
 
   const handleUploadSuccess = (result: UploadResult) => {
     const url = URL.createObjectURL(result.file);
@@ -283,6 +537,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     setActiveFile(result.name);
     setActiveFileUrl(url);
     setActiveFileContent(result.text);
+    setIsChatLoading(false);
     setActiveDocumentId(result.documentId);
     setDocumentSummary(result.summary);
     setIsAnalysisLoading(false);
@@ -341,8 +596,14 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     setIsLoading(true);
 
     try {
-      // Save user message
-      await saveChatMessage(activeDocumentId, 'user', query);
+      // Save user message — check for rate limit first
+      const saveResult = await saveChatMessage(activeDocumentId, 'user', query);
+      if (saveResult.rateLimited) {
+        setMessages(prev => prev.filter(m => m.id !== userMsg.id));
+        setInput(query);
+        setUpgradeModal({ open: true, reason: "rate_limit" });
+        return;
+      }
 
       // Vector search for relevant chunks, fall back to full text if none found
       let retrievedContext: string[];
@@ -383,33 +644,87 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     }
   };
 
+  const isOpeningDocument = Boolean(selectedDocumentId && activeDocumentId !== selectedDocumentId);
+
+  if (isChatLoading || isOpeningDocument) {
+    return <ChatWindowSkeleton />;
+  }
+
+  const documentLimit = plan.maxDocuments;
+  const atDocumentLimit =
+    !isPlanLoading && docCount !== null && documentLimit !== null && docCount >= documentLimit;
+
   if (!activeFile) {
     return (
       <div className="relative flex h-full min-h-0 flex-col items-center justify-center overflow-hidden border-4 border-foreground bg-card p-6 text-center">
         <SidebarTrigger className="absolute left-4 top-4 h-9 w-9 rounded-none border-2 border-foreground bg-background hover:bg-foreground hover:text-background" />
-        <div className="mb-6 flex h-16 w-16 items-center justify-center border-4 border-foreground bg-muted shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-          <Files className="h-8 w-8 text-primary" />
-        </div>
-        <div className="mb-8 space-y-2">
-          <h2 className="font-headline text-2xl font-black uppercase tracking-tighter">No Active Context</h2>
-          <p className="max-w-sm text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            You must upload a document before the AI can provide intelligent responses.
-          </p>
-        </div>
-        {previousDocument && (
-          <Button
-            onClick={() => goToDocument(previousDocument.id)}
-            variant="outline"
-            className="mb-6 h-11 max-w-md border-2 border-foreground bg-background px-4 font-black uppercase tracking-tighter transition-all hover:bg-foreground hover:text-background"
-            title={`Back to ${previousDocument.name}`}
-          >
-            <ArrowLeft className="h-4 w-4 shrink-0" />
-            <span className="truncate">Back to {previousDocument.name}</span>
-          </Button>
+
+        {atDocumentLimit ? (
+          <>
+            <div className="mb-6 flex h-16 w-16 items-center justify-center border-4 border-destructive bg-destructive/10 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+              <Lock className="h-8 w-8 text-destructive" />
+            </div>
+            <div className="mb-8 space-y-2">
+              <h2 className="font-headline text-2xl font-black uppercase tracking-tighter">Document Limit Reached</h2>
+              <p className="max-w-sm text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                You've used all {formatPlanLimit(documentLimit)} document slots on {plan.name}. Upgrade your plan to add more files.
+              </p>
+            </div>
+            {previousDocument && (
+              <Button
+                onClick={() => goToDocument(previousDocument.id)}
+                variant="outline"
+                className="mb-4 h-11 max-w-md border-2 border-foreground bg-background px-4 font-black uppercase tracking-tighter transition-all hover:bg-foreground hover:text-background"
+                title={`Back to ${previousDocument.name}`}
+              >
+                <ArrowLeft className="h-4 w-4 shrink-0" />
+                <span className="truncate">Back to {previousDocument.name}</span>
+              </Button>
+            )}
+            <Button
+              onClick={() => setUpgradeModal({ open: true, reason: "document_limit" })}
+              className="h-12 px-8 bg-primary text-foreground border-4 border-foreground rounded-none font-black uppercase tracking-tighter shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+            >
+              <Zap className="h-5 w-5 mr-2" /> Upgrade Plan
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="mb-6 flex h-16 w-16 items-center justify-center border-4 border-foreground bg-muted shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+              <Files className="h-8 w-8 text-primary" />
+            </div>
+            <div className="mb-8 space-y-2">
+              <h2 className="font-headline text-2xl font-black uppercase tracking-tighter">No Active Context</h2>
+              <p className="max-w-sm text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                You must upload a document before the AI can provide intelligent responses.
+              </p>
+            </div>
+            {previousDocument && (
+              <Button
+                onClick={() => goToDocument(previousDocument.id)}
+                variant="outline"
+                className="mb-6 h-11 max-w-md border-2 border-foreground bg-background px-4 font-black uppercase tracking-tighter transition-all hover:bg-foreground hover:text-background"
+                title={`Back to ${previousDocument.name}`}
+              >
+                <ArrowLeft className="h-4 w-4 shrink-0" />
+                <span className="truncate">Back to {previousDocument.name}</span>
+              </Button>
+            )}
+            <div className="w-full max-w-md">
+              <UploadZone
+                compact
+                onUploadSuccess={handleUploadSuccess}
+                onLimitReached={() => setUpgradeModal({ open: true, reason: "document_limit" })}
+              />
+            </div>
+          </>
         )}
-        <div className="w-full max-w-md">
-          <UploadZone compact onUploadSuccess={handleUploadSuccess} />
-        </div>
+
+        <UpgradeModal
+          open={upgradeModal.open}
+          reason={upgradeModal.reason}
+          onClose={() => setUpgradeModal(prev => ({ ...prev, open: false }))}
+        />
       </div>
     );
   }
@@ -470,7 +785,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
             size="sm"
             className="h-10 min-w-0 border-2 border-foreground px-3 font-bold uppercase tracking-tighter transition-all hover:bg-destructive hover:text-destructive-foreground"
             title="Reset chat"
-            onClick={() => resetChatContext()}
+            onClick={() => setShowResetConfirm(true)}
           >
             <Trash2 className="h-4 w-4 shrink-0" />
             <span className="hidden sm:inline">Reset</span>
@@ -480,7 +795,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
 
       {/* Preview Modal */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="border-4 border-foreground rounded-none shadow-[24px_24px_0px_0px_rgba(0,0,0,1)] max-w-5xl h-[90vh] bg-card p-0 overflow-hidden flex flex-col">
+        <DialogContent hideCloseButton className="border-4 border-foreground rounded-none shadow-[24px_24px_0px_0px_rgba(0,0,0,1)] max-w-5xl h-[90vh] bg-card p-0 overflow-hidden flex flex-col">
           <DialogHeader className="bg-foreground text-background p-6 border-b-4 border-foreground flex flex-row items-center justify-between shrink-0">
             <div className="space-y-1">
               <DialogTitle className="font-headline font-black text-2xl uppercase tracking-tighter">Document Preview</DialogTitle>
@@ -514,7 +829,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
 
       {/* TL;DR Modal */}
       <Dialog open={showTLDR} onOpenChange={setShowTLDR}>
-        <DialogContent className="border-4 border-foreground rounded-none shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] max-w-lg bg-card p-0 overflow-hidden">
+        <DialogContent hideCloseButton className="border-4 border-foreground rounded-none shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] max-w-lg bg-card p-0 overflow-hidden">
           <DialogHeader className="bg-primary p-8 border-b-4 border-foreground">
             <DialogTitle className="font-headline font-black text-3xl uppercase tracking-tighter">Initial Analysis</DialogTitle>
             <DialogDescription className="font-mono text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/60">Source: {activeFile}</DialogDescription>
@@ -551,14 +866,53 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
         </DialogContent>
       </Dialog>
 
+      {/* Reset Confirm Modal */}
+      <Dialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <DialogContent hideCloseButton className="border-4 border-foreground rounded-none shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] max-w-sm bg-card p-0 overflow-hidden">
+          <DialogHeader className="bg-destructive p-6 border-b-4 border-foreground">
+            <DialogTitle className="font-headline font-black text-2xl uppercase tracking-tighter text-destructive-foreground">Reset Chat?</DialogTitle>
+            <DialogDescription className="font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-destructive-foreground/70">This cannot be undone</DialogDescription>
+          </DialogHeader>
+          <div className="p-6 space-y-6">
+            <p className="text-sm font-medium">
+              This will close the current document context and clear the active chat. Your uploaded documents are not deleted.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowResetConfirm(false)}
+                className="h-12 border-2 border-foreground rounded-none font-black uppercase tracking-tighter hover:bg-foreground hover:text-background transition-all"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowResetConfirm(false);
+                  resetChatContext();
+                }}
+                className="h-12 bg-destructive text-destructive-foreground border-2 border-foreground rounded-none font-black uppercase tracking-tighter shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+              >
+                <Trash2 className="h-4 w-4 mr-2" /> Reset
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <UpgradeModal
+        open={upgradeModal.open}
+        reason={upgradeModal.reason}
+        onClose={() => setUpgradeModal(prev => ({ ...prev, open: false }))}
+      />
+
       {/* Messages */}
       <ScrollArea className="min-h-0 flex-1 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:32px_32px]" ref={scrollRef}>
-        <div className="space-y-5 p-4 md:p-6">
+        <div className="space-y-5 p-4">
           {messages.map((msg) => (
             <div
               key={msg.id}
               className={cn(
-                "flex max-w-[94%] gap-3 md:gap-4",
+                "flex max-w-[94%] gap-3",
                 msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
               )}
             >
@@ -570,10 +924,14 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
               </div>
               <div className="group relative flex-1 space-y-2">
                 <div className={cn(
-                  "relative border-2 border-foreground p-4 text-sm font-medium leading-relaxed shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] md:p-5",
+                  "relative border-2 border-foreground p-4 text-sm font-medium leading-relaxed shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
                   msg.role === "user" ? "bg-card" : "bg-muted/90"
                 )}>
-                  {msg.content}
+                  {msg.role === "assistant" ? (
+                    <MarkdownMessage content={msg.content} />
+                  ) : (
+                    msg.content
+                  )}
 
                   {msg.role === "assistant" && (
                     <button
@@ -624,7 +982,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
       </ScrollArea>
 
       {/* Input */}
-      <div className="shrink-0 border-t-4 border-foreground bg-card p-4 md:p-5">
+      <div className="shrink-0 border-t-4 border-foreground bg-card p-4">
         <form
           className="flex items-center gap-3 md:gap-4"
           onSubmit={(e) => {
