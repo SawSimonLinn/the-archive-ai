@@ -3,6 +3,12 @@ import { inflateRawSync } from "node:zlib";
 const DOCX_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+type PdfJsWorkerGlobal = typeof globalThis & {
+  pdfjsWorker?: unknown;
+};
+
+let pdfWorkerReady: Promise<void> | null = null;
+
 class DocumentTextError extends Error {
   constructor(
     public code: string,
@@ -124,7 +130,9 @@ function extractDocxText(buffer: Buffer) {
 }
 
 async function extractPdfText(buffer: Buffer) {
+  await ensurePdfWorker();
   const { PDFParse } = await import("pdf-parse");
+
   const parser = new PDFParse({ data: buffer });
 
   try {
@@ -133,6 +141,14 @@ async function extractPdfText(buffer: Buffer) {
   } finally {
     await parser.destroy();
   }
+}
+
+function ensurePdfWorker() {
+  pdfWorkerReady ??= import("pdfjs-dist/legacy/build/pdf.worker.mjs").then(worker => {
+    (globalThis as PdfJsWorkerGlobal).pdfjsWorker = worker;
+  });
+
+  return pdfWorkerReady;
 }
 
 export function getDocumentExtension(file: File) {
