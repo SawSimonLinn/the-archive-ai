@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,6 +20,8 @@ import {
   CreditCard,
   ExternalLink,
   FileText,
+  Github,
+  Link2,
   Loader2,
   ReceiptText,
   Save,
@@ -27,7 +29,9 @@ import {
   User,
   Zap,
 } from "lucide-react"
+import type { UserIdentity } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
+import { getClientAppOrigin } from "@/lib/site-url"
 import {
   formatPlanLimit,
   serializePlan,
@@ -45,6 +49,18 @@ type UserMetadata = {
 };
 
 type CheckoutPlanId = "pro" | "team" | "live_test";
+type OAuthProviderId = "google" | "github";
+
+function GoogleIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-4 w-4">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    </svg>
+  );
+}
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -67,11 +83,27 @@ function getSessionIdFromUrl() {
   return new URLSearchParams(window.location.search).get("session_id");
 }
 
+function getIdentityLinkErrorDescription(message: string) {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("manual") && normalized.includes("link")) {
+    return "Enable manual identity linking in Supabase Auth settings, then try again.";
+  }
+
+  if (normalized.includes("already linked") || normalized.includes("multiple accounts")) {
+    return "This provider account matches another Supabase Auth user. Remove the extra matching email from the provider account or consolidate the other Auth user first.";
+  }
+
+  return message;
+}
+
 export default function SettingsPage() {
   const [billing, setBilling] = useState<BillingAccountResponse | null>(null);
+  const [identities, setIdentities] = useState<UserIdentity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
+  const [linkingProvider, setLinkingProvider] = useState<OAuthProviderId | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState<CheckoutPlanId | null>(null);
   const [showLiveTestCheckout, setShowLiveTestCheckout] = useState(false);
 
@@ -89,28 +121,57 @@ export default function SettingsPage() {
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
+    let shouldLoadBilling = false;
 
     try {
-      const [{ data: userData }, billingResponse] = await Promise.all([
+      const [{ data: userData, error: userError }, { data: identityData, error: identityError }] = await Promise.all([
         supabase.auth.getUser(),
-        fetch(
-          `/api/account/billing${
-            getSessionIdFromUrl() ? `?session_id=${encodeURIComponent(getSessionIdFromUrl()!)}` : ""
-          }`,
-          { cache: "no-store" },
-        ),
+        supabase.auth.getUserIdentities(),
       ]);
+      if (userError) throw userError;
 
       const user = userData.user;
-      if (user) {
+      if (!user) {
+        setBilling(null);
+        setIdentities([]);
+      } else {
+        shouldLoadBilling = true;
         const metadata = user.user_metadata as UserMetadata;
         setEmail(user.email ?? "");
         setFullName(typeof metadata.full_name === "string" ? metadata.full_name : "");
         setBio(typeof metadata.bio === "string" ? metadata.bio : "");
         setEmailAlerts(typeof metadata.email_alerts === "boolean" ? metadata.email_alerts : true);
         setWeeklyReport(typeof metadata.weekly_report === "boolean" ? metadata.weekly_report : false);
-      }
 
+        if (identityError) {
+          toast({
+            variant: "destructive",
+            title: "Connected Accounts Load Failed",
+            description: identityError.message,
+          });
+        }
+        setIdentities(identityData?.identities ?? []);
+      }
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Settings Load Failed",
+        description: "Could not load account settings.",
+      });
+    }
+
+    if (!shouldLoadBilling) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const billingResponse = await fetch(
+        `/api/account/billing${
+          getSessionIdFromUrl() ? `?session_id=${encodeURIComponent(getSessionIdFromUrl()!)}` : ""
+        }`,
+        { cache: "no-store" },
+      );
       if (billingResponse.ok) {
         const data = (await billingResponse.json()) as BillingAccountResponse;
         setBilling(data);
@@ -121,8 +182,8 @@ export default function SettingsPage() {
     } catch {
       toast({
         variant: "destructive",
-        title: "Settings Load Failed",
-        description: "Could not load account billing settings.",
+        title: "Billing Load Failed",
+        description: "Could not load account billing details.",
       });
     } finally {
       setIsLoading(false);
@@ -161,6 +222,26 @@ export default function SettingsPage() {
     }
 
     toast({ title: "Settings Saved", description: "Your account settings were updated." });
+  };
+
+  const linkIdentity = async (provider: OAuthProviderId) => {
+    setLinkingProvider(provider);
+
+    const { error } = await supabase.auth.linkIdentity({
+      provider,
+      options: {
+        redirectTo: `${getClientAppOrigin()}/auth/callback?next=/dashboard/settings`,
+      },
+    });
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: `${provider === "github" ? "GitHub" : "Google"} Link Failed`,
+        description: getIdentityLinkErrorDescription(error.message),
+      });
+      setLinkingProvider(null);
+    }
   };
 
   const openBillingPortal = async () => {
@@ -202,6 +283,26 @@ export default function SettingsPage() {
       setCheckoutLoading(null);
     }
   };
+
+  const providerRows = [
+    {
+      id: "google",
+      label: "Google",
+      icon: <GoogleIcon />,
+      identity: identities.find((identity) => identity.provider === "google"),
+    },
+    {
+      id: "github",
+      label: "GitHub",
+      icon: <Github className="h-4 w-4" />,
+      identity: identities.find((identity) => identity.provider === "github"),
+    },
+  ] satisfies Array<{
+    id: OAuthProviderId;
+    label: string;
+    icon: ReactNode;
+    identity: UserIdentity | undefined;
+  }>;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 pb-5">
@@ -408,6 +509,48 @@ export default function SettingsPage() {
                   )}
                 </div>
               )}
+            </div>
+          </section>
+
+          <section className="border-2 border-foreground bg-card shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex items-center gap-3 border-b-2 border-foreground bg-muted p-4">
+              <Link2 className="h-5 w-5" />
+              <h3 className="font-headline text-lg font-black uppercase tracking-tighter">Connected Accounts</h3>
+            </div>
+            <div className="space-y-3 p-5">
+              {providerRows.map((provider) => (
+                <div
+                  key={provider.id}
+                  className="flex items-center justify-between gap-4 border-2 border-foreground bg-muted/30 p-3"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center border-2 border-foreground bg-card">
+                      {provider.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-headline text-base font-black uppercase tracking-tighter">
+                        {provider.label}
+                      </p>
+                      <p className="truncate font-mono text-[9px] font-bold uppercase tracking-widest opacity-50">
+                        {provider.identity?.identity_data?.email ?? "Not connected"}
+                      </p>
+                    </div>
+                  </div>
+                  {provider.identity ? (
+                    <Badge className="rounded-none border-2 border-foreground bg-primary px-2 py-1 font-mono text-[9px] font-black uppercase text-foreground">
+                      Connected
+                    </Badge>
+                  ) : (
+                    <Button
+                      onClick={() => linkIdentity(provider.id)}
+                      disabled={linkingProvider !== null}
+                      className="h-9 shrink-0 rounded-none border-2 border-foreground bg-foreground px-3 font-black uppercase text-background shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+                    >
+                      {linkingProvider === provider.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
+                    </Button>
+                  )}
+                </div>
+              ))}
             </div>
           </section>
 

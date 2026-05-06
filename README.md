@@ -4,6 +4,8 @@
 
 ---
 
+![alt text](image.png)
+
 ## What It Does
 
 - Upload PDF, DOCX, and TXT files via drag-and-drop
@@ -18,17 +20,17 @@
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 16 (App Router) + React 19 + TypeScript |
-| Styling | Tailwind CSS + Radix UI (headless) + shadcn/ui |
-| AI Models | OpenAI `gpt-4o-mini` (chat) + `text-embedding-3-small` (embeddings) |
-| AI SDK | Vercel AI SDK v6 (`generateText`, `embed`) |
-| AI Flows | Google Genkit 1.16 |
-| File Parsing | `pdf-parse` for PDF text extraction |
-| Forms | React Hook Form + Zod |
-| File Upload | React Dropzone |
-| Deployment | Firebase App Hosting |
+| Layer        | Technology                                                          |
+| ------------ | ------------------------------------------------------------------- |
+| Framework    | Next.js 16 (App Router) + React 19 + TypeScript                     |
+| Styling      | Tailwind CSS + Radix UI (headless) + shadcn/ui                      |
+| AI Models    | OpenAI `gpt-4o-mini` (chat) + `text-embedding-3-small` (embeddings) |
+| AI SDK       | Vercel AI SDK v6 (`generateText`, `embed`)                          |
+| AI Flows     | Google Genkit 1.16                                                  |
+| File Parsing | `pdf-parse` for PDF text extraction                                 |
+| Forms        | React Hook Form + Zod                                               |
+| File Upload  | React Dropzone                                                      |
+| Deployment   | Firebase App Hosting                                                |
 
 ---
 
@@ -95,7 +97,7 @@ the-archive-ai/
 ### 1. Clone & install
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/SawSimonLinn/the-archive-ai.git
 cd the-archive-ai
 npm install
 ```
@@ -138,37 +140,37 @@ This starts the Genkit developer UI for inspecting and testing AI flows locally.
 
 ## Available Scripts
 
-| Script | Description |
-|---|---|
-| `npm run dev` | Start Next.js dev server on port 9002 (Turbopack) |
-| `npm run build` | Production build |
-| `npm start` | Start production server |
-| `npm run lint` | Run ESLint |
-| `npm run typecheck` | TypeScript type check (no emit) |
-| `npm run genkit:dev` | Start Genkit AI dev UI |
-| `npm run genkit:watch` | Genkit dev UI in watch mode |
+| Script                 | Description                                       |
+| ---------------------- | ------------------------------------------------- |
+| `npm run dev`          | Start Next.js dev server on port 9002 (Turbopack) |
+| `npm run build`        | Production build                                  |
+| `npm start`            | Start production server                           |
+| `npm run lint`         | Run ESLint                                        |
+| `npm run typecheck`    | TypeScript type check (no emit)                   |
+| `npm run genkit:dev`   | Start Genkit AI dev UI                            |
+| `npm run genkit:watch` | Genkit dev UI in watch mode                       |
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `OPENAI_API_KEY` | Yes | OpenAI API key used for GPT-4o-mini and text embeddings |
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase browser anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key for server-only admin operations |
-| `STRIPE_SECRET_KEY` | Yes | Stripe secret key for Checkout, subscriptions, invoices, and portal sessions |
-| `STRIPE_WEBHOOK_SECRET` | Yes | Stripe webhook endpoint signing secret for `/api/stripe/webhook` |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Yes | Stripe publishable key used by browser-facing billing flows |
-| `STRIPE_PRO_PRICE_ID` | Yes | Stripe recurring monthly Price ID for the Pro plan |
-| `STRIPE_TEAM_PRICE_ID` | Yes | Stripe recurring monthly Price ID for the Team plan |
-| `STRIPE_LIVE_TEST_PRICE_ID` | Optional | Hidden live-mode recurring Price ID used for launch checkout/cancellation smoke tests |
-| `NEXT_PUBLIC_APP_URL` | Recommended | Production app origin for callbacks and billing redirects; use `https://thearchiveai.xyz` in production |
+| Variable                             | Required    | Description                                                                                             |
+| ------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------- |
+| `OPENAI_API_KEY`                     | Yes         | OpenAI API key used for GPT-4o-mini and text embeddings                                                 |
+| `NEXT_PUBLIC_SUPABASE_URL`           | Yes         | Supabase project URL                                                                                    |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`      | Yes         | Supabase browser anon key                                                                               |
+| `SUPABASE_SERVICE_ROLE_KEY`          | Yes         | Supabase service role key for server-only admin operations                                              |
+| `STRIPE_SECRET_KEY`                  | Yes         | Stripe secret key for Checkout, subscriptions, invoices, and portal sessions                            |
+| `STRIPE_WEBHOOK_SECRET`              | Yes         | Stripe webhook endpoint signing secret for `/api/stripe/webhook`                                        |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Yes         | Stripe publishable key used by browser-facing billing flows                                             |
+| `STRIPE_PRO_PRICE_ID`                | Yes         | Stripe recurring monthly Price ID for the Pro plan                                                      |
+| `STRIPE_TEAM_PRICE_ID`               | Yes         | Stripe recurring monthly Price ID for the Team plan                                                     |
+| `STRIPE_LIVE_TEST_PRICE_ID`          | Optional    | Hidden live-mode recurring Price ID used for launch checkout/cancellation smoke tests                   |
+| `NEXT_PUBLIC_APP_URL`                | Recommended | Production app origin for callbacks and billing redirects; use `https://thearchiveai.xyz` in production |
 
 ## Supabase Auth Redirects
 
-The app sends Google OAuth users back to the same host they started from. To support both local development and production, configure Supabase Auth like this:
+The app sends OAuth users back to the same host they started from. To support both local development and production for providers like Google and GitHub, configure Supabase Auth like this:
 
 - Site URL: `https://thearchiveai.xyz`
 - Redirect URLs: add every callback origin you use, including `http://localhost:9002/auth/callback` and `https://thearchiveai.xyz/auth/callback`

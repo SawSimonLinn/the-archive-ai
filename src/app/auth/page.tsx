@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Archive, Fingerprint } from "lucide-react"
+import { Archive, Fingerprint, Github } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,18 +22,27 @@ function GoogleIcon() {
   )
 }
 
+function getAuthErrorMessage(searchParams: { get: (name: string) => string | null }) {
+  switch (searchParams.get("error")) {
+    case "account_linking_conflict":
+      return "Your GitHub account matches multiple existing auth users. Sign in with the account you want to keep and connect GitHub from Settings, or remove/consolidate the other matching users first."
+    case "auth_error":
+      return "Authentication failed. Please try again."
+    default:
+      return null
+  }
+}
+
 function AuthContent() {
   const [isLoading, setIsLoading] = useState(false)
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    if (searchParams.get("error")) {
-      setError("Authentication failed. Please try again.")
-    }
+    setError(getAuthErrorMessage(searchParams))
   }, [searchParams])
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -71,18 +80,18 @@ function AuthContent() {
     setIsLoading(false)
   }
 
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true)
+  const handleOAuthSignIn = async (provider: "google" | "github") => {
+    setLoadingProvider(provider)
     setError(null)
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
+      provider,
       options: {
         redirectTo: `${getClientAppOrigin()}/auth/callback`,
       },
     })
     if (error) {
       setError(error.message)
-      setIsGoogleLoading(false)
+      setLoadingProvider(null)
     }
   }
 
@@ -118,16 +127,26 @@ function AuthContent() {
           </div>
         )}
 
-        {/* Google sign-in — full width, primary action */}
-        <Button
-          type="button"
-          onClick={handleGoogleSignIn}
-          disabled={isGoogleLoading}
-          className="w-full h-14 bg-foreground text-background border-2 border-foreground rounded-none font-black uppercase text-base tracking-tighter shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all gap-3 mb-8"
-        >
-          <GoogleIcon />
-          {isGoogleLoading ? "Redirecting..." : "Continue with Google"}
-        </Button>
+        <div className="space-y-3 mb-8">
+          <Button
+            type="button"
+            onClick={() => handleOAuthSignIn("google")}
+            disabled={loadingProvider !== null}
+            className="w-full h-14 bg-foreground text-background border-2 border-foreground rounded-none font-black uppercase text-base tracking-tighter shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all gap-3"
+          >
+            <GoogleIcon />
+            {loadingProvider === "google" ? "Redirecting..." : "Continue with Google"}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => handleOAuthSignIn("github")}
+            disabled={loadingProvider !== null}
+            className="w-full h-14 bg-card text-foreground border-2 border-foreground rounded-none font-black uppercase text-base tracking-tighter shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-muted hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all gap-3"
+          >
+            <Github className="h-5 w-5" />
+            {loadingProvider === "github" ? "Redirecting..." : "Continue with GitHub"}
+          </Button>
+        </div>
 
         <div className="relative mb-8">
           <div className="absolute inset-0 flex items-center">
