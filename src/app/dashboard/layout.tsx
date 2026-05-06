@@ -23,8 +23,48 @@ type SidebarDocument = {
   name: string;
 };
 
+const CURRENT_DOCUMENT_KEY = "archive.currentDocument";
+const PREVIOUS_DOCUMENT_KEY = "archive.previousDocument";
+
 function notifyActiveDocumentChanged(documentId: string | null) {
   window.dispatchEvent(new CustomEvent("archive:active-document-changed", { detail: documentId }));
+}
+
+function notifyDocumentDeleted(documentId: string) {
+  window.dispatchEvent(new CustomEvent("archive:document-deleted", { detail: documentId }));
+}
+
+function notifyDocumentsChanged() {
+  window.dispatchEvent(new CustomEvent("archive:documents-changed"));
+}
+
+function readStoredDocument(key: string): SidebarDocument | null {
+  try {
+    const value = window.localStorage.getItem(key);
+    if (!value) return null;
+
+    const parsed = JSON.parse(value) as Partial<SidebarDocument>;
+    if (typeof parsed.id === "string" && typeof parsed.name === "string") {
+      return { id: parsed.id, name: parsed.name };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function clearDeletedDocumentRefs(documentId: string) {
+  const currentDocument = readStoredDocument(CURRENT_DOCUMENT_KEY);
+  const previousDocument = readStoredDocument(PREVIOUS_DOCUMENT_KEY);
+
+  if (currentDocument?.id === documentId) {
+    window.localStorage.removeItem(CURRENT_DOCUMENT_KEY);
+  }
+
+  if (previousDocument?.id === documentId) {
+    window.localStorage.removeItem(PREVIOUS_DOCUMENT_KEY);
+  }
 }
 
 export default function DashboardLayout({
@@ -137,17 +177,26 @@ export default function DashboardLayout({
 
   const handleDelete = async () => {
     if (!deleteDoc) return;
+    const documentToDelete = deleteDoc;
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/documents/${deleteDoc.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/documents/${documentToDelete.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
-      setDocs((prev) => prev.filter((d) => d.id !== deleteDoc.id));
-      toast({ title: "Deleted", description: `"${deleteDoc.name}" has been deleted.` });
-      if (activeDocId === deleteDoc.id) {
-        router.replace("/dashboard/chat");
-        notifyActiveDocumentChanged(null);
-      }
+      const wasActiveDocument = activeDocId === documentToDelete.id;
+
       setDeleteDoc(null);
+      setDocs((prev) => prev.filter((d) => d.id !== documentToDelete.id));
+      clearDeletedDocumentRefs(documentToDelete.id);
+      notifyDocumentDeleted(documentToDelete.id);
+      notifyDocumentsChanged();
+      toast({ title: "Deleted", description: `"${documentToDelete.name}" has been deleted.` });
+
+      if (wasActiveDocument) {
+        setActiveDocId(null);
+        notifyActiveDocumentChanged(null);
+        router.replace("/dashboard/chat");
+      }
+      router.refresh();
     } catch {
       toast({ variant: "destructive", title: "Delete Failed", description: "Could not delete the document." });
     } finally {
@@ -241,14 +290,18 @@ export default function DashboardLayout({
                               className="w-36 rounded-none border-2 border-foreground bg-card shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-1"
                             >
                               <DropdownMenuItem
-                                onClick={() => openRename(doc)}
+                                onSelect={() => {
+                                  window.setTimeout(() => openRename(doc), 0);
+                                }}
                                 className="gap-2 rounded-none font-bold uppercase tracking-tighter text-xs cursor-pointer focus:bg-primary/20"
                               >
                                 <Pencil className="h-3.5 w-3.5" /> Rename
                               </DropdownMenuItem>
                               <DropdownMenuSeparator className="bg-foreground/10" />
                               <DropdownMenuItem
-                                onClick={() => setDeleteDoc(doc)}
+                                onSelect={() => {
+                                  window.setTimeout(() => setDeleteDoc(doc), 0);
+                                }}
                                 className="gap-2 rounded-none font-bold uppercase tracking-tighter text-xs cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
                               >
                                 <Trash2 className="h-3.5 w-3.5" /> Delete

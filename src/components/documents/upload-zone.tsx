@@ -2,12 +2,14 @@
 "use client"
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useDropzone } from "react-dropzone";
-import { Upload, File, X, Fingerprint } from "lucide-react";
+import { useDropzone, type FileRejection } from "react-dropzone";
+import { Upload, File as FileIcon, X, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { useBillingPlan } from "@/hooks/use-billing-plan";
+import type { UpgradeReason } from "@/components/upgrade-modal";
 
 export interface UploadResult {
   documentId: string;
@@ -21,8 +23,14 @@ export interface UploadResult {
 interface UploadZoneProps {
   onUploadSuccess?: (result: UploadResult) => void;
   onLimitReached?: () => void;
+  onUpgradeRequired?: (reason: UpgradeReason) => void;
   compact?: boolean;
 }
+
+type QueuedFile = {
+  id: string;
+  file: File;
+};
 
 const LOADING_PHASES = [
   "Reading document",
@@ -32,6 +40,15 @@ const LOADING_PHASES = [
   "Analyzing key concepts",
   "Building insights",
 ];
+
+function queueFile(file: File, index: number): QueuedFile {
+  const fallbackId = `${file.name}-${file.lastModified}-${file.size}-${Date.now()}-${index}`;
+
+  return {
+    id: globalThis.crypto?.randomUUID?.() ?? fallbackId,
+    file,
+  };
+}
 
 function AnimatedStatus({ phase }: { phase: string }) {
   const [dots, setDots] = useState("");
@@ -54,21 +71,61 @@ function AnimatedStatus({ phase }: { phase: string }) {
   );
 }
 
-export function UploadZone({ onUploadSuccess, onLimitReached, compact = false }: UploadZoneProps) {
-  const [files, setFiles] = useState<File[]>([]);
+export function UploadZone({ onUploadSuccess, onLimitReached, onUpgradeRequired, compact = false }: UploadZoneProps) {
+  const [files, setFiles] = useState<QueuedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [phaseIndex, setPhaseIndex] = useState(0);
   const progressRef = useRef(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phaseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { plan, isLoading: isPlanLoading } = useBillingPlan();
+  const canUploadMultiple = plan.id !== "free";
+
+  const promptMultiUploadUpgrade = useCallback(() => {
+    toast({
+      title: "Batch Uploads Require Pro",
+      description: "Free accounts can upload one document at a time.",
+    });
+    onUpgradeRequired?.("multi_document_upload");
+  }, [onUpgradeRequired]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    setFiles(prev => [...prev, ...acceptedFiles]);
-  }, []);
+    if (acceptedFiles.length === 0) return;
+
+    const shouldPromptForBatchUpload = !canUploadMultiple && files.length + acceptedFiles.length > 1;
+    if (shouldPromptForBatchUpload) {
+      promptMultiUploadUpgrade();
+    }
+
+    setFiles(prev => {
+      if (canUploadMultiple) {
+        return [...prev, ...acceptedFiles.map(queueFile)];
+      }
+
+      const remainingSlots = Math.max(1 - prev.length, 0);
+      const nextFiles = acceptedFiles.slice(0, remainingSlots);
+
+      if (nextFiles.length === 0) return prev;
+      return [...prev, ...nextFiles.map(queueFile)];
+    });
+  }, [canUploadMultiple, files.length, promptMultiUploadUpgrade]);
+
+  const onDropRejected = useCallback((fileRejections: FileRejection[]) => {
+    const rejectedForBatchUpload = fileRejections.some(rejection =>
+      rejection.errors.some(error => error.code === "too-many-files")
+    );
+
+    if (!canUploadMultiple && rejectedForBatchUpload) {
+      promptMultiUploadUpgrade();
+    }
+  }, [canUploadMultiple, promptMultiUploadUpgrade]);
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
+    onDropRejected,
+    multiple: canUploadMultiple,
+    maxFiles: canUploadMultiple ? 0 : 1,
     noClick: true,
     accept: {
       'application/pdf': ['.pdf'],
@@ -77,8 +134,8 @@ export function UploadZone({ onUploadSuccess, onLimitReached, compact = false }:
     }
   });
 
-  const removeFile = (name: string) => {
-    setFiles(files.filter(f => f.name !== name));
+  const removeFile = (id: string) => {
+    setFiles(currentFiles => currentFiles.filter(file => file.id !== id));
   };
 
   const startProgress = () => {
@@ -107,55 +164,99 @@ export function UploadZone({ onUploadSuccess, onLimitReached, compact = false }:
     }
   };
 
+  const uploadFile = async (file: File): Promise<UploadResult | "document_limit" | "rate_limit" | "multi_document_upload"> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/extract-text', { method: 'POST', body: formData });
+
+    if (res.status === 402 || res.status === 429) {
+      const data = await res.json();
+      if (data.error === 'document_limit_reached' || data.error === 'rate_limit_reached') {
+        return data.error === 'document_limit_reached' ? "document_limit" : "rate_limit";
+      }
+
+      if (data.error === 'multi_document_upload_required') {
+        return "multi_document_upload";
+      }
+    }
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.message ?? 'Upload failed');
+    }
+    const data = await res.json();
+
+    return {
+      documentId: data.documentId,
+      name: file.name,
+      text: data.text,
+      summary: data.summary ?? 'No content-specific TL;DR is available for this document yet.',
+      suggestedQuestions: data.suggestedQuestions ?? [],
+      file,
+    };
+  };
+
   const handleUpload = async () => {
     if (files.length === 0) return;
+
+    const queuedFiles = canUploadMultiple ? files.map(({ file }) => file) : [files[0].file];
+    if (!canUploadMultiple && files.length > 1) {
+      promptMultiUploadUpgrade();
+      return;
+    }
+
     setUploading(true);
     startProgress();
 
-    const file = files[0];
+    let processedCount = 0;
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      for (const [index, file] of queuedFiles.entries()) {
+        setPhaseIndex(index % LOADING_PHASES.length);
+        const result = await uploadFile(file);
 
-      const res = await fetch('/api/extract-text', { method: 'POST', body: formData });
-
-      if (res.status === 402 || res.status === 429) {
-        const data = await res.json();
-        if (data.error === 'document_limit_reached' || data.error === 'rate_limit_reached') {
+        if (result === "document_limit") {
           stopProgress(false);
           onLimitReached?.();
           return;
         }
+
+        if (result === "rate_limit") {
+          stopProgress(false);
+          toast({
+            variant: "destructive",
+            title: "Upload Limit Reached",
+            description: "Too many uploads. Try again later.",
+          });
+          return;
+        }
+
+        if (result === "multi_document_upload") {
+          stopProgress(false);
+          promptMultiUploadUpgrade();
+          return;
+        }
+
+        processedCount += 1;
+        progressRef.current = Math.max(progressRef.current, Math.floor((processedCount / queuedFiles.length) * 88));
+        setProgress(progressRef.current);
+
+        window.dispatchEvent(new CustomEvent("archive:documents-changed", {
+          detail: { id: result.documentId, name: result.name },
+        }));
+
+        onUploadSuccess?.(result);
       }
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message ?? 'Upload failed');
-      }
-      const data = await res.json();
-      stopProgress(true);
+      stopProgress(processedCount > 0);
 
       toast({
-        title: "File Processed",
-        description: `${file.name} added to the Archive.`,
+        title: processedCount === 1 ? "File Processed" : "Files Processed",
+        description:
+          processedCount === 1
+            ? `${queuedFiles[0].name} added to the Archive.`
+            : `${processedCount} documents added to the Archive.`,
       });
-
-      const result: UploadResult = {
-        documentId: data.documentId,
-        name: file.name,
-        text: data.text,
-        summary: data.summary ?? 'No content-specific TL;DR is available for this document yet.',
-        suggestedQuestions: data.suggestedQuestions ?? [],
-        file,
-      };
-
-      window.dispatchEvent(new CustomEvent("archive:documents-changed", {
-        detail: { id: result.documentId, name: result.name },
-      }));
-
-      if (onUploadSuccess) {
-        onUploadSuccess(result);
-      }
     } catch (error) {
       stopProgress(false);
       toast({
@@ -194,7 +295,7 @@ export function UploadZone({ onUploadSuccess, onLimitReached, compact = false }:
           {compact ? "Add Document to Chat" : "Upload Documents"}
         </h3>
         <p className="text-[10px] font-bold text-muted-foreground mt-2 text-center max-w-sm mb-6 uppercase tracking-widest">
-          PDF, TXT or DOCX files.
+          PDF, TXT or DOCX files. {isPlanLoading ? "Checking plan." : canUploadMultiple ? "Batch uploads enabled." : "One file per upload on Free."}
         </p>
         <Button
           variant="outline"
@@ -202,18 +303,18 @@ export function UploadZone({ onUploadSuccess, onLimitReached, compact = false }:
           onClick={open}
           className="h-10 px-6 border-2 border-foreground rounded-none font-black uppercase tracking-tighter hover:bg-foreground hover:text-background transition-all"
         >
-          Select File
+          {canUploadMultiple ? "Select Files" : "Select File"}
         </Button>
       </div>
 
       {files.length > 0 && (
         <div className="space-y-4">
           <div className="grid gap-2">
-            {files.map(file => (
-              <div key={file.name} className="flex items-center justify-between p-4 bg-card border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            {files.map(({ id, file }) => (
+              <div key={id} className="flex items-center justify-between p-4 bg-card border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 <div className="flex items-center gap-4">
                   <div className="p-2 border border-foreground bg-muted">
-                    <File className="h-5 w-5 text-foreground" />
+                    <FileIcon className="h-5 w-5 text-foreground" />
                   </div>
                   <div className="flex flex-col">
                     <span className="text-xs font-black uppercase tracking-tighter truncate max-w-[200px]">{file.name}</span>
@@ -221,7 +322,7 @@ export function UploadZone({ onUploadSuccess, onLimitReached, compact = false }:
                   </div>
                 </div>
                 {!uploading && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-accent hover:text-accent-foreground border-2 border-transparent hover:border-foreground" onClick={() => removeFile(file.name)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-accent hover:text-accent-foreground border-2 border-transparent hover:border-foreground" onClick={() => removeFile(id)}>
                     <X className="h-4 w-4" />
                   </Button>
                 )}

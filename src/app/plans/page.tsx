@@ -29,6 +29,10 @@ const FAQ = [
     a: "PDF, TXT, and DOCX on all plans. The AI reads and indexes the full text of each file.",
   },
   {
+    q: "Can I upload multiple documents at once?",
+    a: "Free accounts upload one document at a time. Pro and Team accounts can select multiple documents in one upload.",
+  },
+  {
     q: "Is my data private?",
     a: "Yes. Documents are encrypted at rest with AES-256. We don't use your data to train AI models.",
   },
@@ -186,6 +190,7 @@ export default function PlansPage() {
                   {[
                     { label: "Documents", values: ["3", "25", "Unlimited"] },
                     { label: "AI Chats / Hour", values: ["20", "Unlimited", "Unlimited"] },
+                    { label: "Batch Uploads", values: ["—", "✓", "✓"] },
                     { label: "File Types", values: ["PDF, TXT, DOCX", "PDF, TXT, DOCX", "PDF, TXT, DOCX"] },
                     { label: "Document Analysis", values: ["Basic", "Full", "Full"] },
                     { label: "Export History", values: ["—", "✓", "✓"] },

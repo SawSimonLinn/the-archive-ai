@@ -5,6 +5,14 @@ import { getAuthenticatedUser } from '@/lib/supabase-server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function normalizeSuggestedQuestions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((question): question is string => typeof question === 'string' && question.trim().length > 0)
+    .map(question => question.trim())
+    .slice(0, 3);
+}
+
 type RouteContext = {
   params: Promise<{
     documentId: string;
@@ -22,7 +30,7 @@ export async function GET(_req: Request, context: RouteContext) {
 
     const { data: doc, error: docError } = await supabaseAdmin
       .from('documents')
-      .select('id, name')
+      .select('id, name, summary, suggested_questions')
       .eq('id', documentId)
       .eq('user_id', user.id)
       .single();
@@ -41,7 +49,12 @@ export async function GET(_req: Request, context: RouteContext) {
 
     return NextResponse.json(
       {
-        document: doc,
+        document: {
+          id: doc.id,
+          name: doc.name,
+          summary: doc.summary ?? null,
+          suggestedQuestions: normalizeSuggestedQuestions(doc.suggested_questions),
+        },
         messages: messages ?? [],
       },
       { headers: { 'Cache-Control': 'no-store' } }

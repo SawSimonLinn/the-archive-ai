@@ -12,7 +12,6 @@ import {
   User,
   Bot,
   Loader2,
-  Trash2,
   Command,
   Copy,
   Download,
@@ -24,7 +23,10 @@ import {
   Sparkles,
   Eye,
   X,
-  Lock
+  Lock,
+  MessageSquare,
+  FileText,
+  ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ragQueryResponseGeneration } from "@/ai/flows/rag-query-response-generation";
@@ -58,6 +60,23 @@ type SavedChatMessage = {
   created_at: string;
 };
 
+type LoadedDocumentRef = StoredDocumentRef & {
+  summary?: string | null;
+  suggestedQuestions?: unknown;
+};
+
+type ChatDocumentRef = StoredDocumentRef & {
+  size?: number | null;
+  created_at?: string | null;
+};
+
+type DocumentPreview = StoredDocumentRef & {
+  type?: string | null;
+  size?: number | null;
+  text: string;
+  signedUrl?: string | null;
+};
+
 const CURRENT_DOCUMENT_KEY = "archive.currentDocument";
 const PREVIOUS_DOCUMENT_KEY = "archive.previousDocument";
 
@@ -84,9 +103,59 @@ function writeStoredDocument(key: string, document: StoredDocumentRef) {
   window.localStorage.setItem(key, JSON.stringify(document));
 }
 
+function clearStoredDocumentRefs(documentId: string) {
+  if (typeof window === "undefined") return;
+
+  [CURRENT_DOCUMENT_KEY, PREVIOUS_DOCUMENT_KEY].forEach((key) => {
+    const document = readStoredDocument(key);
+    if (document?.id === documentId) {
+      window.localStorage.removeItem(key);
+    }
+  });
+}
+
 function notifyActiveDocumentChanged(documentId: string | null) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("archive:active-document-changed", { detail: documentId }));
+}
+
+function normalizeSuggestedQuestions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((question): question is string => typeof question === "string" && question.trim().length > 0)
+    .map(question => question.trim())
+    .slice(0, 3);
+}
+
+function normalizeDocumentList(value: unknown): ChatDocumentRef[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((doc): doc is ChatDocumentRef => {
+      const candidate = doc as Partial<ChatDocumentRef>;
+      return typeof candidate.id === "string" && typeof candidate.name === "string";
+    })
+    .map(doc => ({
+      id: doc.id,
+      name: doc.name,
+      size: typeof doc.size === "number" ? doc.size : null,
+      created_at: typeof doc.created_at === "string" ? doc.created_at : null,
+    }));
+}
+
+function formatFileSize(size: number | null | undefined) {
+  if (!size) return "Size unknown";
+
+  const units = ["B", "KB", "MB", "GB"];
+  let value = size;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: value >= 10 ? 0 : 1 })} ${units[unitIndex]}`;
 }
 
 function buildInitialMessage(documentName: string, includeSummaryNote = false): Message {
@@ -303,34 +372,51 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
-  const [activeFileUrl, setActiveFileUrl] = useState<string | null>(null);
   const [activeFileContent, setActiveFileContent] = useState<string | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [documentSummary, setDocumentSummary] = useState<string | null>(null);
-  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
   const [showTLDR, setShowTLDR] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; reason: UpgradeReason }>({ open: false, reason: "document_limit" });
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [previousDocument, setPreviousDocument] = useState<StoredDocumentRef | null>(null);
   const [docCount, setDocCount] = useState<number | null>(null);
+  const [documents, setDocuments] = useState<ChatDocumentRef[]>([]);
+  const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(null);
+  const [previewDocument, setPreviewDocument] = useState<DocumentPreview | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const { plan, isLoading: isPlanLoading } = useBillingPlan();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fetchDocCount = async () => {
+    const fetchDocuments = async () => {
       const res = await fetch('/api/documents', { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
-      setDocCount((data.documents ?? []).length);
+      const nextDocuments = normalizeDocumentList(data.documents);
+      setDocuments(nextDocuments);
+      setDocCount(nextDocuments.length);
     };
 
-    void fetchDocCount();
+    void fetchDocuments();
 
-    const handleDocumentsChanged = () => void fetchDocCount();
+    const handleDocumentsChanged = () => void fetchDocuments();
+    const handleDocumentDeleted = () => {
+      setDocCount(currentCount => currentCount === null ? null : Math.max(currentCount - 1, 0));
+      setUpgradeModal(currentModal =>
+        currentModal.reason === "document_limit" ? { ...currentModal, open: false } : currentModal
+      );
+      void fetchDocuments();
+    };
+
     window.addEventListener("archive:documents-changed", handleDocumentsChanged);
-    return () => window.removeEventListener("archive:documents-changed", handleDocumentsChanged);
+    window.addEventListener("archive:document-deleted", handleDocumentDeleted);
+
+    return () => {
+      window.removeEventListener("archive:documents-changed", handleDocumentsChanged);
+      window.removeEventListener("archive:document-deleted", handleDocumentDeleted);
+    };
   }, []);
 
   const rememberActiveDocument = useCallback((document: StoredDocumentRef, fallbackPrevious?: StoredDocumentRef | null) => {
@@ -347,28 +433,31 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     writeStoredDocument(CURRENT_DOCUMENT_KEY, document);
   }, []);
 
-  const resetChatContext = useCallback((updateUrl = true) => {
+  const resetChatContext = useCallback((updateUrl = true, preservePrevious = true) => {
     const lastActiveDocument =
       activeDocumentId && activeFile
         ? { id: activeDocumentId, name: activeFile }
         : readStoredDocument(CURRENT_DOCUMENT_KEY);
 
-    if (lastActiveDocument) {
+    if (preservePrevious && lastActiveDocument) {
       writeStoredDocument(PREVIOUS_DOCUMENT_KEY, lastActiveDocument);
       setPreviousDocument(lastActiveDocument);
+    } else if (!preservePrevious) {
+      setPreviousDocument(readStoredDocument(PREVIOUS_DOCUMENT_KEY));
     }
 
     setMessages([]);
     setInput("");
     setActiveFile(null);
     setActiveDocumentId(null);
-    setActiveFileUrl(null);
     setActiveFileContent(null);
     setIsChatLoading(false);
     setDocumentSummary(null);
-    setIsAnalysisLoading(false);
     setSuggestedQuestions([]);
     setShowPreview(false);
+    setPreviewDocumentId(null);
+    setPreviewDocument(null);
+    setPreviewError(null);
     setShowTLDR(false);
 
     if (updateUrl) {
@@ -385,6 +474,11 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     notifyActiveDocumentChanged(documentId);
   }, [router]);
 
+  const openDocumentViewer = useCallback(() => {
+    setPreviewDocumentId(activeDocumentId ?? selectedDocumentId ?? documents[0]?.id ?? null);
+    setShowPreview(true);
+  }, [activeDocumentId, documents, selectedDocumentId]);
+
   const canReturnToPreviousDocument = Boolean(
     previousDocument && previousDocument.id !== activeDocumentId
   );
@@ -394,12 +488,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
-
-  useEffect(() => {
-    return () => {
-      if (activeFileUrl) URL.revokeObjectURL(activeFileUrl);
-    };
-  }, [activeFileUrl]);
 
   useEffect(() => {
     setPreviousDocument(readStoredDocument(PREVIOUS_DOCUMENT_KEY) ?? readStoredDocument(CURRENT_DOCUMENT_KEY));
@@ -429,12 +517,98 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   }, []);
 
   useEffect(() => {
+    const handleDocumentDeleted = (event: Event) => {
+      const deletedDocumentId = (event as CustomEvent<string>).detail;
+      if (!deletedDocumentId) return;
+
+      clearStoredDocumentRefs(deletedDocumentId);
+      setPreviousDocument(currentDocument =>
+        currentDocument?.id === deletedDocumentId ? readStoredDocument(PREVIOUS_DOCUMENT_KEY) : currentDocument
+      );
+      setDocuments(currentDocuments => currentDocuments.filter(documentRef => documentRef.id !== deletedDocumentId));
+      if (previewDocumentId === deletedDocumentId) {
+        setPreviewDocumentId(null);
+        setPreviewDocument(null);
+        setPreviewError(null);
+      }
+      if (selectedDocumentId === deletedDocumentId || activeDocumentId === deletedDocumentId) {
+        setSelectedDocumentId(null);
+        resetChatContext(false, false);
+      }
+    };
+
+    window.addEventListener("archive:document-deleted", handleDocumentDeleted);
+    return () => window.removeEventListener("archive:document-deleted", handleDocumentDeleted);
+  }, [activeDocumentId, previewDocumentId, resetChatContext, selectedDocumentId]);
+
+  useEffect(() => {
     if (!selectedDocumentId) {
       if (activeDocumentId) resetChatContext(false);
       setIsChatLoading(false);
       return;
     }
   }, [selectedDocumentId, activeDocumentId, resetChatContext]);
+
+  useEffect(() => {
+    if (!showPreview || previewDocumentId || documents.length === 0) return;
+    setPreviewDocumentId(activeDocumentId ?? selectedDocumentId ?? documents[0].id);
+  }, [activeDocumentId, documents, previewDocumentId, selectedDocumentId, showPreview]);
+
+  useEffect(() => {
+    if (!showPreview) {
+      setIsPreviewLoading(false);
+      setPreviewError(null);
+      return;
+    }
+
+    if (!previewDocumentId) {
+      setPreviewDocument(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPreview = async () => {
+      setIsPreviewLoading(true);
+      setPreviewError(null);
+      setPreviewDocument(null);
+
+      try {
+        const res = await fetch(`/api/documents/${previewDocumentId}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Could not load document preview');
+
+        const data = await res.json();
+        if (cancelled) return;
+
+        const preview: DocumentPreview = {
+          id: data.document?.id ?? previewDocumentId,
+          name: data.document?.name ?? "Untitled Document",
+          type: typeof data.document?.type === "string" ? data.document.type : null,
+          size: typeof data.document?.size === "number" ? data.document.size : null,
+          text: typeof data.text === "string" ? data.text : "",
+          signedUrl: typeof data.signedUrl === "string" ? data.signedUrl : null,
+        };
+
+        setPreviewDocument(preview);
+        if (preview.id === activeDocumentId && preview.text) {
+          setActiveFileContent(preview.text);
+        }
+      } catch {
+        if (!cancelled) {
+          setPreviewDocument(null);
+          setPreviewError("Could not load this document.");
+        }
+      } finally {
+        if (!cancelled) setIsPreviewLoading(false);
+      }
+    };
+
+    void loadPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDocumentId, previewDocumentId, showPreview]);
 
   // Load document + chat history when a doc is selected from the sidebar
   useEffect(() => {
@@ -445,10 +619,9 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
 
     const load = async () => {
       setIsChatLoading(true);
-      setIsAnalysisLoading(true);
 
       let chatData: {
-        document: StoredDocumentRef;
+        document: LoadedDocumentRef;
         messages: SavedChatMessage[];
       };
 
@@ -464,7 +637,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
             description: "Could not load the saved document chat.",
           });
           setIsChatLoading(false);
-          setIsAnalysisLoading(false);
         }
         return;
       }
@@ -477,10 +649,12 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
       setActiveFile(doc.name);
       setActiveDocumentId(selectedDocumentId);
       rememberActiveDocument({ id: selectedDocumentId, name: doc.name });
-      setActiveFileUrl(null);
       setActiveFileContent(null);
-      setDocumentSummary(null);
-      setSuggestedQuestions([]);
+      const savedSummary = typeof doc.summary === "string" && doc.summary.trim().length > 0
+        ? doc.summary
+        : null;
+      setDocumentSummary(savedSummary);
+      setSuggestedQuestions(normalizeSuggestedQuestions(doc.suggestedQuestions));
 
       if (msgs.length > 0) {
         setMessages(msgs.map(m => ({
@@ -500,21 +674,21 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
 
       setIsChatLoading(false);
 
+      if (savedSummary) return;
+
       try {
-        const res = await fetch(`/api/documents/${selectedDocumentId}/analysis`);
+        const res = await fetch(`/api/documents/${selectedDocumentId}/analysis`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Could not load document analysis');
         const analysis = await res.json();
         if (cancelled) return;
 
         setDocumentSummary(analysis.summary ?? null);
-        setSuggestedQuestions((analysis.suggestedQuestions ?? []).filter(Boolean).slice(0, 3));
+        setSuggestedQuestions(normalizeSuggestedQuestions(analysis.suggestedQuestions));
       } catch {
         if (!cancelled) {
           setDocumentSummary('The document was indexed, but a content-specific TL;DR could not be prepared from the stored chunks.');
           setSuggestedQuestions([]);
         }
-      } finally {
-        if (!cancelled) setIsAnalysisLoading(false);
       }
     };
 
@@ -526,7 +700,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   }, [selectedDocumentId, activeDocumentId, activeFile, rememberActiveDocument]);
 
   const handleUploadSuccess = (result: UploadResult) => {
-    const url = URL.createObjectURL(result.file);
     const fallbackPrevious =
       activeDocumentId && activeFile && activeDocumentId !== result.documentId
         ? { id: activeDocumentId, name: activeFile }
@@ -535,15 +708,13 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
 
     rememberActiveDocument({ id: result.documentId, name: result.name }, fallbackPrevious);
     setActiveFile(result.name);
-    setActiveFileUrl(url);
     setActiveFileContent(result.text);
     setIsChatLoading(false);
     setActiveDocumentId(result.documentId);
     setDocumentSummary(result.summary);
-    setIsAnalysisLoading(false);
     setShowTLDR(true);
 
-    setSuggestedQuestions(result.suggestedQuestions.filter(Boolean).slice(0, 3));
+    setSuggestedQuestions(normalizeSuggestedQuestions(result.suggestedQuestions));
 
     setMessages([initialMessage]);
 
@@ -715,6 +886,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
                 compact
                 onUploadSuccess={handleUploadSuccess}
                 onLimitReached={() => setUpgradeModal({ open: true, reason: "document_limit" })}
+                onUpgradeRequired={(reason) => setUpgradeModal({ open: true, reason })}
               />
             </div>
           </>
@@ -746,14 +918,14 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
           </div>
         </div>
 
-        <div className="grid w-full grid-cols-4 gap-2 lg:flex lg:w-auto lg:items-center">
+        <div className="grid w-full grid-cols-3 gap-2 lg:flex lg:w-auto lg:items-center">
           <Button
             onClick={() => {
               if (previousDocument) goToDocument(previousDocument.id);
             }}
             disabled={!canReturnToPreviousDocument || isLoading}
             variant="outline"
-            className="h-10 min-w-0 border-2 border-foreground bg-background px-3 font-black uppercase tracking-tighter transition-all hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-45"
+            className="h-10 min-w-0 border-2 border-foreground bg-background px-3 font-black uppercase tracking-tighter transition-all hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-45 lg:hidden"
             title={canReturnToPreviousDocument ? `Back to ${previousDocument?.name}` : "No previous file yet"}
           >
             <ArrowLeft className="h-4 w-4 shrink-0" />
@@ -761,7 +933,7 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
           </Button>
 
           <Button
-            onClick={() => setShowPreview(true)}
+            onClick={openDocumentViewer}
             variant="outline"
             className="h-10 min-w-0 border-2 border-foreground bg-background px-3 font-black uppercase tracking-tighter transition-all hover:bg-foreground hover:text-background"
             title="View document"
@@ -776,53 +948,140 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
             className="h-10 min-w-0 border-2 border-foreground bg-background px-3 font-black uppercase tracking-tighter transition-all hover:bg-foreground hover:text-background"
             title="View summary"
           >
-            {isAnalysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4 text-primary" />}
-            <span className="hidden sm:inline">{isAnalysisLoading ? "Preparing" : "Summary"}</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-10 min-w-0 border-2 border-foreground px-3 font-bold uppercase tracking-tighter transition-all hover:bg-destructive hover:text-destructive-foreground"
-            title="Reset chat"
-            onClick={() => setShowResetConfirm(true)}
-          >
-            <Trash2 className="h-4 w-4 shrink-0" />
-            <span className="hidden sm:inline">Reset</span>
+            <Zap className="h-4 w-4 text-primary" />
+            <span className="hidden sm:inline">Summary</span>
           </Button>
         </div>
       </div>
 
       {/* Preview Modal */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent hideCloseButton className="border-4 border-foreground rounded-none shadow-[24px_24px_0px_0px_rgba(0,0,0,1)] max-w-5xl h-[90vh] bg-card p-0 overflow-hidden flex flex-col">
+        <DialogContent hideCloseButton className="flex h-[90vh] w-[calc(100vw-2rem)] max-w-6xl flex-col overflow-hidden rounded-none border-4 border-foreground bg-card p-0 shadow-[24px_24px_0px_0px_rgba(0,0,0,1)]">
           <DialogHeader className="bg-foreground text-background p-6 border-b-4 border-foreground flex flex-row items-center justify-between shrink-0">
             <div className="space-y-1">
-              <DialogTitle className="font-headline font-black text-2xl uppercase tracking-tighter">Document Preview</DialogTitle>
-              <DialogDescription className="font-mono text-[8px] font-bold uppercase tracking-[0.4em] text-background/60 leading-none">Source: {activeFile}</DialogDescription>
+              <DialogTitle className="font-headline font-black text-2xl uppercase tracking-tighter">Documents</DialogTitle>
+              <DialogDescription className="font-mono text-[8px] font-bold uppercase tracking-[0.4em] text-background/60 leading-none">
+                {documents.length} {documents.length === 1 ? "source" : "sources"} available
+              </DialogDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={() => setShowPreview(false)} className="text-background hover:bg-primary hover:text-foreground">
               <X className="h-6 w-6" />
             </Button>
           </DialogHeader>
-          <div className="flex-1 bg-muted/30 p-4">
-            {activeFileUrl ? (
-              <iframe
-                src={activeFileUrl}
-                className="w-full h-full border-4 border-foreground bg-white"
-                title="Document Preview"
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-center p-12 space-y-4">
-                <Files className="h-16 w-16 opacity-20" />
-                <p className="font-headline font-black uppercase text-xl">Preview Unavailable</p>
-                <p className="font-mono text-[10px] uppercase tracking-widest opacity-60">The document could not be loaded into the viewer.</p>
+
+          <div className="grid min-h-0 flex-1 bg-muted/30 lg:grid-cols-[18rem_1fr]">
+            <aside className="min-h-0 border-b-4 border-foreground bg-card lg:border-b-0 lg:border-r-4">
+              <div className="border-b-2 border-foreground p-4">
+                <p className="font-mono text-[9px] font-black uppercase tracking-[0.3em] opacity-50">Select Document</p>
               </div>
-            )}
+              <ScrollArea className="h-[14rem] lg:h-full">
+                <div className="space-y-2 p-3">
+                  {documents.length === 0 ? (
+                    <div className="flex h-28 flex-col items-center justify-center gap-2 border-2 border-dashed border-foreground/20 text-center">
+                      <Files className="h-8 w-8 opacity-25" />
+                      <p className="font-mono text-[9px] font-bold uppercase tracking-widest opacity-45">No documents</p>
+                    </div>
+                  ) : (
+                    documents.map((doc) => {
+                      const isSelected = previewDocumentId === doc.id;
+                      const isActive = activeDocumentId === doc.id;
+
+                      return (
+                        <button
+                          key={doc.id}
+                          onClick={() => setPreviewDocumentId(doc.id)}
+                          className={cn(
+                            "flex w-full min-w-0 items-start gap-3 border-2 p-3 text-left transition-all",
+                            isSelected
+                              ? "border-foreground bg-primary shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+                              : "border-foreground/20 bg-background hover:border-foreground hover:bg-primary/10"
+                          )}
+                        >
+                          <FileText className="mt-0.5 h-4 w-4 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-black uppercase tracking-tighter text-xs">{doc.name}</span>
+                            <span className="mt-1 block font-mono text-[8px] font-bold uppercase tracking-widest opacity-45">
+                              {isActive ? "Active Chat" : formatFileSize(doc.size)}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+            </aside>
+
+            <section className="flex min-h-0 flex-col">
+              <div className="flex shrink-0 flex-col gap-3 border-b-4 border-foreground bg-muted p-4 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate font-headline text-xl font-black uppercase tracking-tighter">
+                    {previewDocument?.name ?? documents.find(doc => doc.id === previewDocumentId)?.name ?? "Document Preview"}
+                  </p>
+                  <p className="font-mono text-[9px] font-bold uppercase tracking-widest opacity-50">
+                    {previewDocument ? `${formatFileSize(previewDocument.size)} · ${previewDocument.type?.toUpperCase() ?? "DOC"}` : "Extracted document text"}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  {previewDocument?.signedUrl && (
+                    <Button asChild variant="outline" className="h-10 rounded-none border-2 border-foreground bg-background px-3 font-black uppercase tracking-tighter hover:bg-foreground hover:text-background">
+                      <a href={previewDocument.signedUrl} target="_blank" rel="noreferrer">
+                        <ExternalLink className="h-4 w-4" /> Original
+                      </a>
+                    </Button>
+                  )}
+                  {previewDocumentId && previewDocumentId !== activeDocumentId && (
+                    <Button
+                      onClick={() => goToDocument(previewDocumentId)}
+                      className="h-10 rounded-none border-2 border-foreground bg-primary px-3 font-black uppercase tracking-tighter text-foreground hover:bg-primary/80"
+                    >
+                      <MessageSquare className="h-4 w-4" /> Open Chat
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 bg-background p-4">
+                {isPreviewLoading ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.3em] opacity-50">Loading Document</p>
+                  </div>
+                ) : previewError ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                    <Files className="h-14 w-14 opacity-20" />
+                    <p className="font-headline text-xl font-black uppercase tracking-tighter">Preview Unavailable</p>
+                    <p className="font-mono text-[10px] font-bold uppercase tracking-widest opacity-50">{previewError}</p>
+                  </div>
+                ) : previewDocument ? (
+                  <ScrollArea className="h-full border-4 border-foreground bg-card">
+                    {previewDocument.text.trim().length > 0 ? (
+                      <pre className="whitespace-pre-wrap break-words p-5 font-mono text-xs leading-relaxed text-foreground md:text-sm">
+                        {previewDocument.text}
+                      </pre>
+                    ) : (
+                      <div className="flex h-full min-h-[22rem] flex-col items-center justify-center gap-3 p-8 text-center">
+                        <Files className="h-14 w-14 opacity-20" />
+                        <p className="font-headline text-xl font-black uppercase tracking-tighter">No Extracted Text</p>
+                        <p className="max-w-sm font-mono text-[10px] font-bold uppercase tracking-widest opacity-50">
+                          This file exists, but no readable text was stored for preview.
+                        </p>
+                      </div>
+                    )}
+                  </ScrollArea>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                    <Files className="h-14 w-14 opacity-20" />
+                    <p className="font-headline text-xl font-black uppercase tracking-tighter">Select A Document</p>
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
-          <div className="p-4 border-t-4 border-foreground bg-muted flex justify-between items-center font-mono text-[10px] font-black uppercase tracking-widest">
+
+          <div className="flex shrink-0 items-center justify-between border-t-4 border-foreground bg-muted p-4 font-mono text-[10px] font-black uppercase tracking-widest">
             <span>Security: AES-256 Vaulted</span>
-            <Button onClick={() => setShowPreview(false)} className="bg-foreground text-background border-2 border-foreground rounded-none hover:bg-primary hover:text-foreground transition-all">Close Viewer</Button>
+            <Button onClick={() => setShowPreview(false)} className="rounded-none border-2 border-foreground bg-foreground text-background transition-all hover:bg-primary hover:text-foreground">Close Viewer</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -837,19 +1096,12 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
           <div className="flex min-h-0 flex-1 flex-col gap-5 p-5 sm:p-6">
             <div className="relative flex min-h-0 flex-1 flex-col border-2 border-foreground bg-muted p-4 font-medium leading-relaxed sm:p-5">
               <div className="absolute -top-3 left-4 bg-foreground text-background px-2 py-0.5 text-[8px] font-black uppercase">Executive Summary</div>
-              {isAnalysisLoading ? (
-                <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.3em]">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  Preparing document-specific TL;DR...
-                </div>
-              ) : (
-                <ScrollArea className="min-h-0 flex-1 pr-3">
-                  <MarkdownMessage
-                    content={documentSummary ?? 'No content-specific TL;DR is available for this document yet.'}
-                    className="break-words"
-                  />
-                </ScrollArea>
-              )}
+              <ScrollArea className="min-h-0 flex-1 pr-3">
+                <MarkdownMessage
+                  content={documentSummary ?? 'No content-specific TL;DR is available for this document yet.'}
+                  className="break-words"
+                />
+              </ScrollArea>
             </div>
             <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <Button
@@ -863,39 +1115,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
                 className="h-12 rounded-none border-4 border-foreground bg-foreground text-background font-black uppercase tracking-tighter transition-all hover:bg-muted hover:text-foreground sm:h-14"
               >
                 Start Chatting <ArrowRight className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reset Confirm Modal */}
-      <Dialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
-        <DialogContent hideCloseButton className="border-4 border-foreground rounded-none shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] max-w-sm bg-card p-0 overflow-hidden">
-          <DialogHeader className="bg-destructive p-6 border-b-4 border-foreground">
-            <DialogTitle className="font-headline font-black text-2xl uppercase tracking-tighter text-destructive-foreground">Reset Chat?</DialogTitle>
-            <DialogDescription className="font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-destructive-foreground/70">This cannot be undone</DialogDescription>
-          </DialogHeader>
-          <div className="p-6 space-y-6">
-            <p className="text-sm font-medium">
-              This will close the current document context and clear the active chat. Your uploaded documents are not deleted.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowResetConfirm(false)}
-                className="h-12 border-2 border-foreground rounded-none font-black uppercase tracking-tighter hover:bg-foreground hover:text-background transition-all"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowResetConfirm(false);
-                  resetChatContext();
-                }}
-                className="h-12 bg-destructive text-destructive-foreground border-2 border-foreground rounded-none font-black uppercase tracking-tighter shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Reset
               </Button>
             </div>
           </div>

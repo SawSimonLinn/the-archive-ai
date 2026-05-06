@@ -10,7 +10,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useBillingPlan } from "@/hooks/use-billing-plan";
 
-export type UpgradeReason = "document_limit" | "rate_limit";
+export type UpgradeReason = "document_limit" | "rate_limit" | "multi_document_upload";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -27,6 +27,10 @@ const REASON_COPY: Record<UpgradeReason, { title: string; description: string }>
     title: "Chat Limit Reached",
     description: `You've hit the free plan limit of ${PLANS.free.chatMessagesPerHour} chats per hour. Upgrade for unlimited conversations.`,
   },
+  multi_document_upload: {
+    title: "Batch Uploads Are Paid",
+    description: "Free accounts can upload one document at a time. Upgrade to add multiple files in one upload.",
+  },
 };
 
 const HIGHLIGHT_PLAN = "pro";
@@ -38,7 +42,7 @@ export function UpgradeModal({ open, onClose, reason }: UpgradeModalProps) {
         title: "Document Limit Reached",
         description: `You've used all ${formatPlanLimit(currentPlan.maxDocuments)} document slots on ${currentPlan.name}. Upgrade to keep adding files.`,
       }
-    : REASON_COPY.rate_limit;
+    : REASON_COPY[reason];
   const [loading, setLoading] = useState<'pro' | 'team' | null>(null);
 
   async function handleUpgrade(planId: 'pro' | 'team') {

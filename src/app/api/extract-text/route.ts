@@ -50,7 +50,18 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
+    const uploadedFiles = formData.getAll('file').filter((value): value is File => value instanceof File);
+    const file = uploadedFiles[0] ?? null;
+
+    if (uploadedFiles.length > 1 && plan.id === 'free') {
+      return NextResponse.json(
+        {
+          error: 'multi_document_upload_required',
+          message: 'Multiple document uploads require a paid plan.',
+        },
+        { status: 402 }
+      );
+    }
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -108,6 +119,18 @@ export async function POST(req: NextRequest) {
       processDocumentForEmbeddings({ documentId: doc.id, documentContent: text }),
       initialAnalysisPromise,
     ]);
+
+    const { error: analysisUpdateError } = await supabaseAdmin
+      .from('documents')
+      .update({
+        summary: initialAnalysis.summary,
+        suggested_questions: initialAnalysis.suggestedQuestions,
+        analysis_generated_at: new Date().toISOString(),
+      })
+      .eq('id', doc.id)
+      .eq('user_id', user.id);
+    if (analysisUpdateError) throw analysisUpdateError;
+
     if (chunks.length > 0) {
       const { error: chunkInsertError } = await supabaseAdmin.from('document_chunks').insert(
         chunks.map((c, i) => ({

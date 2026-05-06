@@ -20,7 +20,7 @@
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 15 (App Router) + React 19 + TypeScript |
+| Framework | Next.js 16 (App Router) + React 19 + TypeScript |
 | Styling | Tailwind CSS + Radix UI (headless) + shadcn/ui |
 | AI Models | OpenAI `gpt-4o-mini` (chat) + `text-embedding-3-small` (embeddings) |
 | AI SDK | Vercel AI SDK v6 (`generateText`, `embed`) |
@@ -102,10 +102,19 @@ npm install
 
 ### 2. Configure environment variables
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root. Use `.env.example` as the template:
 
 ```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 OPENAI_API_KEY=your_openai_api_key_here
+STRIPE_SECRET_KEY=sk_test_or_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_or_live_...
+STRIPE_PRO_PRICE_ID=price_...
+STRIPE_TEAM_PRICE_ID=price_...
+NEXT_PUBLIC_APP_URL=http://localhost:9002
 ```
 
 ### 3. Run the development server
@@ -148,22 +157,32 @@ This starts the Genkit developer UI for inspecting and testing AI flows locally.
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase browser anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key for server-only admin operations |
-| `NEXT_PUBLIC_APP_URL` | Recommended | Fallback app origin for callbacks and billing redirects when the current host cannot be inferred |
+| `STRIPE_SECRET_KEY` | Yes | Stripe secret key for Checkout, subscriptions, invoices, and portal sessions |
+| `STRIPE_WEBHOOK_SECRET` | Yes | Stripe webhook endpoint signing secret for `/api/stripe/webhook` |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Yes | Stripe publishable key used by browser-facing billing flows |
+| `STRIPE_PRO_PRICE_ID` | Yes | Stripe recurring monthly Price ID for the Pro plan |
+| `STRIPE_TEAM_PRICE_ID` | Yes | Stripe recurring monthly Price ID for the Team plan |
+| `NEXT_PUBLIC_APP_URL` | Recommended | Production app origin for callbacks and billing redirects; use `https://thearchiveai.xyz` in production |
 
 ## Supabase Auth Redirects
 
 The app sends Google OAuth users back to the same host they started from. To support both local development and production, configure Supabase Auth like this:
 
-- Site URL: your production origin, for example `https://the-archive-ai-eosin.vercel.app`
-- Redirect URLs: add every callback origin you use, including `http://localhost:9002/auth/callback`, `https://the-archive-ai-eosin.vercel.app/auth/callback`, and your future custom domain callback such as `https://your-domain.com/auth/callback`
+- Site URL: `https://thearchiveai.xyz`
+- Redirect URLs: add every callback origin you use, including `http://localhost:9002/auth/callback` and `https://thearchiveai.xyz/auth/callback`
 
-For local development, keep using `http://localhost:9002/auth`. For Vercel or a custom domain, use that deployed `/auth` URL. The code derives the callback origin from the browser/request host, with `NEXT_PUBLIC_APP_URL` only as a fallback.
+For local development, keep using `http://localhost:9002/auth`. For production, use `https://thearchiveai.xyz/auth`. The code keeps localhost callbacks local during development and uses the configured production origin for deployed auth and billing redirects.
 
 ---
 
 ## Deployment
 
 The project is configured for **Firebase App Hosting** via `apphosting.yaml`.
+
+Before deploying, complete the production checklist in
+[`docs/production-readiness.md`](docs/production-readiness.md): run the Supabase
+migrations, create App Hosting secrets, configure Supabase Auth redirect URLs,
+configure the Stripe webhook endpoint, and smoke-test the deployed app.
 
 ```bash
 npm run build

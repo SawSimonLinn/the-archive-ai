@@ -1,4 +1,5 @@
 const LOCAL_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i;
+const PRODUCTION_APP_ORIGIN = "https://thearchiveai.xyz";
 
 function firstHeaderValue(value: string | null) {
   return value?.split(",")[0]?.trim() || null;
@@ -20,24 +21,49 @@ function normalizeOrigin(value: string | undefined | null) {
 }
 
 function getConfiguredAppOrigin() {
-  return (
-    normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL) ??
-    normalizeOrigin(process.env.NEXT_PUBLIC_SITE_URL) ??
-    normalizeOrigin(process.env.VERCEL_PROJECT_PRODUCTION_URL) ??
-    normalizeOrigin(process.env.VERCEL_URL)
-  );
+  for (const origin of [
+    normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL),
+    normalizeOrigin(process.env.NEXT_PUBLIC_SITE_URL),
+  ]) {
+    if (origin && !isLocalOrigin(origin) && !isVercelOrigin(origin)) {
+      return origin;
+    }
+  }
+
+  return PRODUCTION_APP_ORIGIN;
 }
 
 function isLocalHost(host: string) {
   return LOCAL_HOST_PATTERN.test(host);
 }
 
+function isLocalOrigin(origin: string) {
+  try {
+    return isLocalHost(new URL(origin).host);
+  } catch {
+    return false;
+  }
+}
+
+function isVercelOrigin(origin: string) {
+  try {
+    return new URL(origin).hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
+
 export function getClientAppOrigin() {
   if (typeof window !== "undefined" && window.location.origin) {
-    return window.location.origin;
+    const currentOrigin = normalizeOrigin(window.location.origin);
+    if (currentOrigin && isLocalOrigin(currentOrigin)) {
+      return currentOrigin;
+    }
+
+    return getConfiguredAppOrigin();
   }
 
-  return getConfiguredAppOrigin() ?? "http://localhost:9002";
+  return getConfiguredAppOrigin();
 }
 
 export function getRequestOrigin(request: Request) {
@@ -48,10 +74,13 @@ export function getRequestOrigin(request: Request) {
     const forwardedProto = firstHeaderValue(request.headers.get("x-forwarded-proto"));
     const protocol = forwardedProto ?? (isLocalHost(host) ? "http" : "https");
 
-    return `${protocol}://${host}`;
+    const requestOrigin = `${protocol}://${host}`;
+    if (isLocalHost(host)) {
+      return requestOrigin;
+    }
   }
 
-  return getConfiguredAppOrigin() ?? new URL(request.url).origin;
+  return getConfiguredAppOrigin();
 }
 
 export function getSafeRedirectPath(value: string | null, fallback = "/dashboard") {

@@ -8,6 +8,7 @@ export const PLANS = {
     features: [
       '3 documents',
       '20 AI chats per hour',
+      'Single-document uploads',
       'PDF, TXT, DOCX support',
       'Basic document analysis',
     ],
@@ -21,6 +22,7 @@ export const PLANS = {
     features: [
       '25 documents',
       'Unlimited AI chats',
+      'Batch document uploads',
       'Priority processing',
       'Full document analysis',
       'Export chat history',
@@ -35,6 +37,7 @@ export const PLANS = {
     features: [
       'Unlimited documents',
       'Unlimited AI chats',
+      'Batch document uploads',
       'Team workspace',
       'API access',
       'Priority support',
