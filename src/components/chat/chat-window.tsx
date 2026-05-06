@@ -145,7 +145,7 @@ function renderInlineMarkdown(text: string) {
   });
 }
 
-function MarkdownMessage({ content }: { content: string }) {
+function MarkdownMessage({ content, className }: { content: string; className?: string }) {
   const blocks: ReactNode[] = [];
   const lines = normalizeMarkdown(content).split('\n');
   let paragraph: string[] = [];
@@ -233,7 +233,7 @@ function MarkdownMessage({ content }: { content: string }) {
   flushParagraph();
   flushList();
 
-  return <div className="max-w-none text-sm leading-relaxed">{blocks}</div>;
+  return <div className={cn("max-w-none text-sm leading-relaxed", className)}>{blocks}</div>;
 }
 
 function ChatWindowSkeleton() {
@@ -829,13 +829,13 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
 
       {/* TL;DR Modal */}
       <Dialog open={showTLDR} onOpenChange={setShowTLDR}>
-        <DialogContent hideCloseButton className="border-4 border-foreground rounded-none shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] max-w-lg bg-card p-0 overflow-hidden">
-          <DialogHeader className="bg-primary p-8 border-b-4 border-foreground">
-            <DialogTitle className="font-headline font-black text-3xl uppercase tracking-tighter">Initial Analysis</DialogTitle>
-            <DialogDescription className="font-mono text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/60">Source: {activeFile}</DialogDescription>
+        <DialogContent hideCloseButton className="flex max-h-[90dvh] w-[calc(100vw-2rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-none border-4 border-foreground bg-card p-0 shadow-[16px_16px_0px_0px_rgba(0,0,0,1)]">
+          <DialogHeader className="min-w-0 shrink-0 border-b-4 border-foreground bg-primary p-5 sm:p-6">
+            <DialogTitle className="font-headline text-2xl font-black uppercase leading-none tracking-tighter sm:text-3xl">Initial Analysis</DialogTitle>
+            <DialogDescription className="block truncate font-mono text-[10px] font-bold uppercase tracking-[0.32em] text-foreground/60">Source: {activeFile}</DialogDescription>
           </DialogHeader>
-          <div className="p-10 space-y-8">
-            <div className="p-6 bg-muted border-2 border-foreground font-medium text-sm leading-relaxed relative">
+          <div className="flex min-h-0 flex-1 flex-col gap-5 p-5 sm:p-6">
+            <div className="relative flex min-h-0 flex-1 flex-col border-2 border-foreground bg-muted p-4 font-medium leading-relaxed sm:p-5">
               <div className="absolute -top-3 left-4 bg-foreground text-background px-2 py-0.5 text-[8px] font-black uppercase">Executive Summary</div>
               {isAnalysisLoading ? (
                 <div className="flex items-center gap-3 font-mono text-[10px] font-black uppercase tracking-[0.3em]">
@@ -843,21 +843,24 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
                   Preparing document-specific TL;DR...
                 </div>
               ) : (
-                <div className="whitespace-pre-line">
-                  {documentSummary ?? 'No content-specific TL;DR is available for this document yet.'}
-                </div>
+                <ScrollArea className="min-h-0 flex-1 pr-3">
+                  <MarkdownMessage
+                    content={documentSummary ?? 'No content-specific TL;DR is available for this document yet.'}
+                    className="break-words"
+                  />
+                </ScrollArea>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <Button
                 onClick={handleDownloadSummary}
-                className="h-16 bg-primary text-foreground border-4 border-foreground rounded-none font-black uppercase tracking-tighter gap-3 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+                className="h-12 rounded-none border-4 border-foreground bg-primary text-foreground font-black uppercase tracking-tighter shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-1 hover:translate-y-1 hover:shadow-none sm:h-14"
               >
                 <Download className="h-5 w-5" /> Download TL;DR
               </Button>
               <Button
                 onClick={() => setShowTLDR(false)}
-                className="h-16 bg-foreground text-background border-4 border-foreground rounded-none font-black uppercase tracking-tighter gap-3 hover:bg-muted hover:text-foreground transition-all"
+                className="h-12 rounded-none border-4 border-foreground bg-foreground text-background font-black uppercase tracking-tighter transition-all hover:bg-muted hover:text-foreground sm:h-14"
               >
                 Start Chatting <ArrowRight className="h-5 w-5" />
               </Button>
