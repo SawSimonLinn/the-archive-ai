@@ -43,6 +43,18 @@ export const PLANS = {
       'Priority support',
     ],
   },
+  live_test: {
+    id: 'live_test',
+    name: 'Live Test',
+    price: 1,
+    maxDocuments: 25,
+    chatMessagesPerHour: Infinity,
+    features: [
+      'Live checkout test',
+      'Live cancellation test',
+      'Pro-level limits while active',
+    ],
+  },
 } as const;
 
 export type PlanId = keyof typeof PLANS;

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   user_id                 UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   stripe_customer_id      TEXT UNIQUE,
   stripe_subscription_id  TEXT UNIQUE,
-  plan_id                 TEXT NOT NULL DEFAULT 'free',  -- 'free' | 'pro' | 'team'
+  plan_id                 TEXT NOT NULL DEFAULT 'free',  -- 'free' | 'pro' | 'team' | 'live_test'
   status                  TEXT NOT NULL DEFAULT 'active', -- 'active' | 'canceled' | 'past_due'
   current_period_end      TIMESTAMPTZ,
   created_at              TIMESTAMPTZ DEFAULT now(),

@@ -44,6 +44,8 @@ type UserMetadata = {
   weekly_report?: unknown;
 };
 
+type CheckoutPlanId = "pro" | "team" | "live_test";
+
 function formatDate(value: string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat(undefined, {
@@ -70,7 +72,8 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState<"pro" | "team" | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState<CheckoutPlanId | null>(null);
+  const [showLiveTestCheckout, setShowLiveTestCheckout] = useState(false);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -82,6 +85,7 @@ export default function SettingsPage() {
   const transactions = billing?.transactions ?? [];
   const subscriptionStatus = billing?.subscription.status ?? "free";
   const currentPeriodEnd = billing?.subscription.currentPeriodEnd ?? null;
+  const hasActiveSubscription = subscriptionStatus === "active" || subscriptionStatus === "trialing";
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
@@ -129,6 +133,10 @@ export default function SettingsPage() {
     void loadSettings();
   }, [loadSettings]);
 
+  useEffect(() => {
+    setShowLiveTestCheckout(new URLSearchParams(window.location.search).get("live_test") === "1");
+  }, []);
+
   const handleSave = async () => {
     setIsSaving(true);
 
@@ -173,7 +181,7 @@ export default function SettingsPage() {
     }
   };
 
-  const startCheckout = async (planId: "pro" | "team") => {
+  const startCheckout = async (planId: CheckoutPlanId) => {
     setCheckoutLoading(planId);
     try {
       const res = await fetch("/api/stripe/checkout", {
@@ -333,18 +341,35 @@ export default function SettingsPage() {
               )}
 
               {billing?.portalAvailable ? (
-                <Button
-                  onClick={openBillingPortal}
-                  disabled={isPortalLoading}
-                  className="h-11 w-full rounded-none border-2 border-foreground bg-primary font-black uppercase text-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
-                >
-                  {isPortalLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="mr-2 h-4 w-4" />
+                <div className="grid gap-3">
+                  <Button
+                    onClick={openBillingPortal}
+                    disabled={isPortalLoading}
+                    className="h-11 w-full rounded-none border-2 border-foreground bg-primary font-black uppercase text-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+                  >
+                    {isPortalLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                    )}
+                    Manage Billing
+                  </Button>
+                  {showLiveTestCheckout && !hasActiveSubscription && (
+                    <Button
+                      onClick={() => startCheckout("live_test")}
+                      disabled={checkoutLoading !== null}
+                      className="h-11 rounded-none border-2 border-foreground bg-muted font-black uppercase text-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+                    >
+                      {checkoutLoading === "live_test" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <CreditCard className="mr-2 h-4 w-4" /> Live test checkout
+                        </>
+                      )}
+                    </Button>
                   )}
-                  Manage Billing
-                </Button>
+                </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                   {(["pro", "team"] as const).map((planId) => (
@@ -366,6 +391,21 @@ export default function SettingsPage() {
                       )}
                     </Button>
                   ))}
+                  {showLiveTestCheckout && (
+                    <Button
+                      onClick={() => startCheckout("live_test")}
+                      disabled={checkoutLoading !== null}
+                      className="h-11 rounded-none border-2 border-foreground bg-muted font-black uppercase text-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none sm:col-span-2 lg:col-span-1"
+                    >
+                      {checkoutLoading === "live_test" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <CreditCard className="mr-2 h-4 w-4" /> Live test checkout
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

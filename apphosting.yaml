@@ -57,6 +57,11 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: STRIPE_LIVE_TEST_PRICE_ID
+    secret: STRIPE_LIVE_TEST_PRICE_ID
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_APP_URL
     secret: NEXT_PUBLIC_APP_URL
     availability:

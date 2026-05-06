@@ -10,6 +10,7 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export const STRIPE_PRICE_IDS: Record<PaidPlanId, string | undefined> = {
   pro: process.env.STRIPE_PRO_PRICE_ID,
   team: process.env.STRIPE_TEAM_PRICE_ID,
+  live_test: process.env.STRIPE_LIVE_TEST_PRICE_ID,
 };
 
 function isStripePriceId(value: string | undefined): value is string {
@@ -21,7 +22,7 @@ function isStripePriceId(value: string | undefined): value is string {
 }
 
 export function getStripePriceId(planId: unknown): string | null {
-  if (planId !== "pro" && planId !== "team") return null;
+  if (planId !== "pro" && planId !== "team" && planId !== "live_test") return null;
 
   const priceId = STRIPE_PRICE_IDS[planId];
   if (!isStripePriceId(priceId)) {
@@ -38,6 +39,7 @@ export function getStripePlanIdForPriceId(priceId: string | null | undefined): P
 
   if (priceId === STRIPE_PRICE_IDS.pro) return "pro";
   if (priceId === STRIPE_PRICE_IDS.team) return "team";
+  if (priceId === STRIPE_PRICE_IDS.live_test) return "live_test";
 
   return null;
 }

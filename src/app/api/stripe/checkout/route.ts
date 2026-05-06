@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (isMissingStripePriceError(error)) {
       console.error(
-        "Stripe checkout price not found. Verify STRIPE_PRO_PRICE_ID and STRIPE_TEAM_PRICE_ID belong to the same Stripe account as STRIPE_SECRET_KEY.",
+        "Stripe checkout price not found. Verify Stripe price IDs belong to the same Stripe account as STRIPE_SECRET_KEY.",
         getStripeErrorDetails(error),
       );
       return NextResponse.json(

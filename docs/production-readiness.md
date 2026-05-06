@@ -28,6 +28,7 @@ firebase apphosting:secrets:set STRIPE_WEBHOOK_SECRET
 firebase apphosting:secrets:set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 firebase apphosting:secrets:set STRIPE_PRO_PRICE_ID
 firebase apphosting:secrets:set STRIPE_TEAM_PRICE_ID
+firebase apphosting:secrets:set STRIPE_LIVE_TEST_PRICE_ID
 firebase apphosting:secrets:set NEXT_PUBLIC_APP_URL
 ```
 
