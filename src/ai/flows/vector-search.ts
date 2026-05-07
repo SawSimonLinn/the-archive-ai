@@ -1,11 +1,12 @@
-'use server';
-
-import { openai } from '@/ai/genkit';
+import { openai } from '@/ai/openai';
 import { embed } from 'ai';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getAuthenticatedUser } from '@/lib/supabase-server';
 
 export async function searchDocumentChunks(query: string, documentId: string): Promise<string[]> {
+  const normalizedQuery = query.trim().slice(0, 8000);
+  if (!normalizedQuery) throw new Error('Query is required');
+
   const user = await getAuthenticatedUser();
   if (!user) throw new Error('Unauthorized');
 
@@ -21,7 +22,7 @@ export async function searchDocumentChunks(query: string, documentId: string): P
 
   const { embedding } = await embed({
     model: openai.embedding('text-embedding-3-small'),
-    value: query,
+    value: normalizedQuery,
   });
 
   const { data, error } = await supabaseAdmin.rpc('match_document_chunks', {

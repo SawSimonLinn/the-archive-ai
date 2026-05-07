@@ -26,7 +26,6 @@
 | Styling      | Tailwind CSS + Radix UI (headless) + shadcn/ui                      |
 | AI Models    | OpenAI `gpt-4o-mini` (chat) + `text-embedding-3-small` (embeddings) |
 | AI SDK       | Vercel AI SDK v6 (`generateText`, `embed`)                          |
-| AI Flows     | Google Genkit 1.16                                                  |
 | File Parsing | `pdf-parse` for PDF text extraction                                 |
 | Forms        | React Hook Form + Zod                                               |
 | File Upload  | React Dropzone                                                      |
@@ -52,8 +51,7 @@ the-archive-ai/
 │   │   └── api/
 │   │       └── extract-text/route.ts # PDF/text extraction API route
 │   ├── ai/
-│   │   ├── genkit.ts                 # OpenAI client config
-│   │   ├── dev.ts                    # Genkit dev server entry
+│   │   ├── openai.ts                 # OpenAI client config
 │   │   └── flows/
 │   │       ├── rag-query-response-generation.ts    # RAG chat flow
 │   │       └── document-embedding-processing.ts    # Chunking & embedding flow
@@ -128,16 +126,6 @@ npm run dev
 
 The app runs at [http://localhost:9002](http://localhost:9002)
 
-### 4. (Optional) Start the Genkit AI dev server
-
-```bash
-npm run genkit:dev
-```
-
-This starts the Genkit developer UI for inspecting and testing AI flows locally.
-
----
-
 ## Available Scripts
 
 | Script                 | Description                                       |
@@ -145,10 +133,7 @@ This starts the Genkit developer UI for inspecting and testing AI flows locally.
 | `npm run dev`          | Start Next.js dev server on port 9002 (Turbopack) |
 | `npm run build`        | Production build                                  |
 | `npm start`            | Start production server                           |
-| `npm run lint`         | Run ESLint                                        |
 | `npm run typecheck`    | TypeScript type check (no emit)                   |
-| `npm run genkit:dev`   | Start Genkit AI dev UI                            |
-| `npm run genkit:watch` | Genkit dev UI in watch mode                       |
 
 ---
 

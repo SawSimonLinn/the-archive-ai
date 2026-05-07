@@ -16,6 +16,7 @@ const MIME_TYPES: Record<string, string> = {
   txt: 'text/plain',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 };
+const MAX_DOCUMENT_NAME_LENGTH = 200;
 
 function getMimeType(type: string | null | undefined) {
   if (!type) return 'application/octet-stream';
@@ -132,6 +133,10 @@ export async function PATCH(req: Request, context: RouteContext) {
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    if (name.length > MAX_DOCUMENT_NAME_LENGTH) {
+      return NextResponse.json({ error: 'Name is too long' }, { status: 400 });
     }
 
     const { data, error } = await supabaseAdmin

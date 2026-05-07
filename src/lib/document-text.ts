@@ -2,6 +2,7 @@ import { inflateRawSync } from "node:zlib";
 
 const DOCX_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const MAX_DOCX_XML_BYTES = 10 * 1024 * 1024;
 
 type PdfJsWorkerGlobal = typeof globalThis & {
   pdfjsWorker?: unknown;
@@ -31,7 +32,7 @@ function isDocx(file: File) {
 }
 
 function isText(file: File) {
-  return file.type.startsWith("text/") || file.name.toLowerCase().endsWith(".txt");
+  return file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt");
 }
 
 function sanitizeText(text: string) {
@@ -84,6 +85,14 @@ function readZipEntry(buffer: Buffer, entryName: string) {
       .toString("utf8");
 
     if (fileName === entryName) {
+      if (uncompressedSize > MAX_DOCX_XML_BYTES) {
+        throw new DocumentTextError(
+          "docx_too_large",
+          "This DOCX file is too large to process safely.",
+          413,
+        );
+      }
+
       if (buffer.readUInt32LE(localHeaderOffset) !== 0x04034b50) return null;
 
       const localFileNameLength = buffer.readUInt16LE(localHeaderOffset + 26);
@@ -167,6 +176,10 @@ async function configurePdfParse() {
 }
 
 export function getDocumentExtension(file: File) {
+  if (isPdf(file)) return "pdf";
+  if (isDocx(file)) return "docx";
+  if (isText(file)) return "txt";
+
   return (file.name.split(".").pop() ?? "bin")
     .replace(/[^a-z0-9]/gi, "")
     .toLowerCase();

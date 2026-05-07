@@ -16,6 +16,17 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+const MAX_FILE_NAME_LENGTH = 200;
+const STORAGE_CONTENT_TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+
+function normalizeDocumentName(name: string) {
+  const trimmed = name.trim().replace(/\s+/g, ' ');
+  return trimmed.slice(0, MAX_FILE_NAME_LENGTH) || 'Untitled document';
+}
 
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser();
@@ -88,8 +99,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const documentName = normalizeDocumentName(file.name);
+
     const initialAnalysisPromise = generateDocumentInitialAnalysis({
-      documentName: file.name,
+      documentName,
       documentContent: text,
     });
 
@@ -99,13 +112,15 @@ export async function POST(req: NextRequest) {
 
     const { error: storageError } = await supabaseAdmin.storage
       .from('documents')
-      .upload(storagePath, buffer, { contentType: file.type || 'application/octet-stream' });
+      .upload(storagePath, buffer, {
+        contentType: STORAGE_CONTENT_TYPES[ext] ?? 'application/octet-stream',
+      });
     if (storageError) throw storageError;
 
     const { data: doc, error: insertError } = await supabaseAdmin
       .from('documents')
       .insert({
-        name: file.name,
+        name: documentName,
         type: ext,
         size: file.size,
         storage_path: storagePath,
@@ -148,6 +163,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       text,
       documentId: doc.id,
+      name: doc.name,
       summary: initialAnalysis.summary,
       suggestedQuestions: initialAnalysis.suggestedQuestions,
     });

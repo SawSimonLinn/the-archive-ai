@@ -189,7 +189,7 @@ export function UploadZone({ onUploadSuccess, onLimitReached, onUpgradeRequired,
 
     return {
       documentId: data.documentId,
-      name: file.name,
+      name: typeof data.name === "string" ? data.name : file.name,
       text: data.text,
       summary: data.summary ?? 'No content-specific TL;DR is available for this document yet.',
       suggestedQuestions: data.suggestedQuestions ?? [],

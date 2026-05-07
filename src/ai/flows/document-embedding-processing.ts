@@ -1,6 +1,4 @@
-'use server';
-
-import { openai } from '@/ai/genkit';
+import { openai } from '@/ai/openai';
 import { embedMany } from 'ai';
 import { z } from 'zod';
 

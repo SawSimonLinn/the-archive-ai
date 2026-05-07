@@ -4,13 +4,16 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getAuthenticatedUser } from '@/lib/supabase-server';
 import { checkChatRateLimit } from '@/lib/rate-limit';
 import { getUserPlan } from '@/lib/get-user-plan';
+import {
+  MAX_CHAT_MESSAGE_LENGTH,
+  saveDocumentChatMessage,
+} from '@/lib/chat-messages';
 
 export const runtime = 'nodejs';
 
 const ChatMessageSchema = z.object({
   documentId: z.string().uuid(),
-  role: z.enum(['user', 'assistant']),
-  content: z.string().trim().min(1),
+  content: z.string().trim().min(1).max(MAX_CHAT_MESSAGE_LENGTH),
 });
 
 export async function POST(req: NextRequest) {
@@ -26,20 +29,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid chat message payload' }, { status: 400 });
     }
 
-    const { documentId, role, content } = parsed.data;
+    const { documentId, content } = parsed.data;
 
-    // Only rate-limit user messages, not saved AI responses
-    if (role === 'user') {
-      const plan = await getUserPlan(user.id);
-      const chatLimit = plan.chatMessagesPerHour;
-      if (chatLimit !== Infinity) {
-        const allowed = await checkChatRateLimit(user.id, chatLimit);
-        if (!allowed) {
-          return NextResponse.json(
-            { error: 'rate_limit_reached', message: 'Chat limit reached. Upgrade for unlimited chats.' },
-            { status: 429 }
-          );
-        }
+    const plan = await getUserPlan(user.id);
+    const chatLimit = plan.chatMessagesPerHour;
+    if (chatLimit !== Infinity) {
+      const allowed = await checkChatRateLimit(user.id, chatLimit);
+      if (!allowed) {
+        return NextResponse.json(
+          { error: 'rate_limit_reached', message: 'Chat limit reached. Upgrade for unlimited chats.' },
+          { status: 429 }
+        );
       }
     }
 
@@ -55,52 +55,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    const { data: existingMessage, error: sessionLookupError } = await supabaseAdmin
-      .from('chat_messages')
-      .select('session_id')
-      .eq('source_document_id', documentId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (sessionLookupError) {
-      console.error('Chat session lookup error:', sessionLookupError);
-      return NextResponse.json({ error: 'Failed to find chat session' }, { status: 500 });
-    }
-
-    let sessionId = existingMessage?.session_id as string | undefined;
-
-    if (!sessionId) {
-      const { data: session, error: sessionError } = await supabaseAdmin
-        .from('chat_sessions')
-        .insert({})
-        .select('id')
-        .single();
-
-      if (sessionError || !session) {
-        console.error('Chat session create error:', sessionError);
-        return NextResponse.json({ error: 'Failed to create chat session' }, { status: 500 });
-      }
-
-      sessionId = session.id;
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('chat_messages')
-      .insert({
-        session_id: sessionId,
-        source_document_id: documentId,
-        role,
-        content,
-        user_id: user.id,
-      })
-      .select('id')
-      .single();
-
-    if (error) {
-      console.error('Chat message insert error:', error);
-      return NextResponse.json({ error: 'Failed to save chat message' }, { status: 500 });
-    }
+    const data = await saveDocumentChatMessage({
+      userId: user.id,
+      documentId,
+      role: 'user',
+      content,
+    });
 
     return NextResponse.json({ id: data.id });
   } catch (error) {

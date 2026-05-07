@@ -29,8 +29,6 @@ import {
   ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ragQueryResponseGeneration } from "@/ai/flows/rag-query-response-generation";
-import { searchDocumentChunks } from "@/ai/flows/vector-search";
 import { Message } from "@/lib/types";
 import { formatPlanLimit } from "@/lib/billing";
 import {
@@ -58,6 +56,11 @@ type SavedChatMessage = {
   role: Message["role"];
   content: string;
   created_at: string;
+};
+
+type AskDocumentResponse = {
+  userMessage: SavedChatMessage;
+  assistantMessage: SavedChatMessage;
 };
 
 type LoadedDocumentRef = StoredDocumentRef & {
@@ -169,11 +172,14 @@ function buildInitialMessage(documentName: string, includeSummaryNote = false): 
   };
 }
 
-async function saveChatMessage(documentId: string, role: Message["role"], content: string): Promise<{ rateLimited: boolean }> {
-  const res = await fetch('/api/chat-messages', {
+async function askDocumentQuestion(documentId: string, message: string): Promise<
+  | { rateLimited: true }
+  | { rateLimited: false; data: AskDocumentResponse }
+> {
+  const res = await fetch(`/api/documents/${documentId}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ documentId, role, content }),
+    body: JSON.stringify({ message }),
   });
 
   if (res.status === 429) {
@@ -182,10 +188,10 @@ async function saveChatMessage(documentId: string, role: Message["role"], conten
 
   if (!res.ok) {
     const data = await res.json().catch(() => null);
-    throw new Error(data?.error ?? 'Failed to save chat message');
+    throw new Error(data?.error ?? 'Failed to send chat message');
   }
 
-  return { rateLimited: false };
+  return { rateLimited: false, data: await res.json() };
 }
 
 function normalizeMarkdown(content: string) {
@@ -372,7 +378,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
-  const [activeFileContent, setActiveFileContent] = useState<string | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [documentSummary, setDocumentSummary] = useState<string | null>(null);
   const [showTLDR, setShowTLDR] = useState(false);
@@ -450,7 +455,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     setInput("");
     setActiveFile(null);
     setActiveDocumentId(null);
-    setActiveFileContent(null);
     setIsChatLoading(false);
     setDocumentSummary(null);
     setSuggestedQuestions([]);
@@ -590,9 +594,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
         };
 
         setPreviewDocument(preview);
-        if (preview.id === activeDocumentId && preview.text) {
-          setActiveFileContent(preview.text);
-        }
       } catch {
         if (!cancelled) {
           setPreviewDocument(null);
@@ -649,7 +650,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
       setActiveFile(doc.name);
       setActiveDocumentId(selectedDocumentId);
       rememberActiveDocument({ id: selectedDocumentId, name: doc.name });
-      setActiveFileContent(null);
       const savedSummary = typeof doc.summary === "string" && doc.summary.trim().length > 0
         ? doc.summary
         : null;
@@ -667,9 +667,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
       } else {
         const initialMessage = buildInitialMessage(doc.name);
         setMessages([initialMessage]);
-        void saveChatMessage(selectedDocumentId, initialMessage.role, initialMessage.content).catch((error) => {
-          console.error('Failed to save initial chat message:', error);
-        });
       }
 
       setIsChatLoading(false);
@@ -708,7 +705,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
 
     rememberActiveDocument({ id: result.documentId, name: result.name }, fallbackPrevious);
     setActiveFile(result.name);
-    setActiveFileContent(result.text);
     setIsChatLoading(false);
     setActiveDocumentId(result.documentId);
     setDocumentSummary(result.summary);
@@ -717,15 +713,6 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     setSuggestedQuestions(normalizeSuggestedQuestions(result.suggestedQuestions));
 
     setMessages([initialMessage]);
-
-    void saveChatMessage(result.documentId, initialMessage.role, initialMessage.content).catch((error) => {
-      console.error('Failed to save initial chat message:', error);
-      toast({
-        variant: "destructive",
-        title: "Chat Save Failed",
-        description: "The document loaded, but the starter chat could not be saved.",
-      });
-    });
 
     router.push(`/dashboard/chat?docId=${result.documentId}`);
     notifyActiveDocumentChanged(result.documentId);
@@ -767,47 +754,33 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     setIsLoading(true);
 
     try {
-      // Save user message — check for rate limit first
-      const saveResult = await saveChatMessage(activeDocumentId, 'user', query);
-      if (saveResult.rateLimited) {
+      const chatResult = await askDocumentQuestion(activeDocumentId, query);
+      if (chatResult.rateLimited) {
         setMessages(prev => prev.filter(m => m.id !== userMsg.id));
         setInput(query);
         setUpgradeModal({ open: true, reason: "rate_limit" });
         return;
       }
 
-      // Vector search for relevant chunks, fall back to full text if none found
-      let retrievedContext: string[];
-      try {
-        const chunks = await searchDocumentChunks(query, activeDocumentId);
-        retrievedContext = chunks.length > 0
-          ? chunks
-          : activeFileContent
-            ? [activeFileContent.slice(0, 8000)]
-            : [`Context extracted from ${activeFile}...`];
-      } catch {
-        retrievedContext = activeFileContent
-          ? [activeFileContent.slice(0, 8000)]
-          : [`Context extracted from ${activeFile}...`];
-      }
-
-      const response = await ragQueryResponseGeneration({
-        userQuery: query,
-        retrievedContext,
-      });
+      const savedUserMessage = chatResult.data.userMessage;
+      const savedAssistantMessage = chatResult.data.assistantMessage;
 
       const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
+        id: savedAssistantMessage.id,
         role: "assistant",
-        content: response.answer,
-        timestamp: new Date(),
+        content: savedAssistantMessage.content,
+        timestamp: new Date(savedAssistantMessage.created_at),
         sources: [activeFile],
       };
 
-      setMessages(prev => [...prev, aiMsg]);
-
-      // Save AI response
-      await saveChatMessage(activeDocumentId, 'assistant', response.answer);
+      setMessages(prev => [
+        ...prev.map(message =>
+          message.id === userMsg.id
+            ? { ...message, id: savedUserMessage.id, timestamp: new Date(savedUserMessage.created_at) }
+            : message
+        ),
+        aiMsg,
+      ]);
     } catch {
       toast({ variant: "destructive", title: "System Error", description: "Could not save or retrieve document context." });
     } finally {

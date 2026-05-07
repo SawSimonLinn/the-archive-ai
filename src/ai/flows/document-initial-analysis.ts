@@ -1,11 +1,9 @@
-'use server';
-
-import { openai } from '@/ai/genkit';
+import { openai } from '@/ai/openai';
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 
 const DocumentInitialAnalysisInputSchema = z.object({
-  documentName: z.string(),
+  documentName: z.string().trim().min(1).max(240),
   documentContent: z.string(),
 });
 export type DocumentInitialAnalysisInput = z.infer<typeof DocumentInitialAnalysisInputSchema>;
