@@ -10,7 +10,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useBillingPlan } from "@/hooks/use-billing-plan";
 
-export type UpgradeReason = "document_limit" | "rate_limit" | "multi_document_upload";
+export type UpgradeReason = "document_limit" | "rate_limit" | "multi_document_upload" | "premium_ai";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -30,6 +30,10 @@ const REASON_COPY: Record<UpgradeReason, { title: string; description: string }>
   multi_document_upload: {
     title: "Multiple Uploads Are Paid",
     description: "Free accounts can upload one document at a time. Upgrade to add multiple documents in one upload.",
+  },
+  premium_ai: {
+    title: "Premium AI Controls",
+    description: "Upgrade to switch models, use stronger reasoning, and run deeper research passes.",
   },
 };
 

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from 'next/link';
-import { Activity, Archive, ArrowRight, FileText, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { Archive, ArrowRight, FileText, Github, Lock, Mail, ShieldCheck } from 'lucide-react';
 import { SITE } from '@/lib/site';
 
 const footerSections = [
@@ -36,8 +36,8 @@ const footerSections = [
 const trustItems = [
   { label: "Encrypted documents", icon: Lock },
   { label: "Source-cited answers", icon: FileText },
+  { label: "Open-source code", icon: Github },
   { label: "Security review ready", icon: ShieldCheck },
-  { label: "Status updates", icon: Activity },
 ];
 
 export function SiteFooter() {
@@ -79,6 +79,14 @@ export function SiteFooter() {
               >
                 Contact support <Mail className="h-4 w-4" />
               </Link>
+              <a
+                href={SITE.repositoryUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-12 items-center justify-center gap-2 border-2 border-background/25 px-5 text-sm font-black uppercase tracking-tighter text-background transition-colors hover:border-primary hover:text-primary"
+              >
+                Source <Github className="h-4 w-4" />
+              </a>
             </div>
           </div>
 
@@ -115,10 +123,13 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-8 flex flex-col gap-5 font-mono text-[10px] uppercase tracking-widest text-background/45 md:flex-row md:items-center md:justify-between">
-          <p>© {currentYear} {SITE.legalName}. All rights reserved.</p>
+          <p>© {currentYear} {SITE.legalName}. Open source under MIT.</p>
           <div className="flex flex-wrap gap-x-8 gap-y-2">
             <a href={`mailto:${SITE.supportEmail}`} className="hover:text-primary transition-colors">
               {SITE.supportEmail}
+            </a>
+            <a href={SITE.repositoryUrl} target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">
+              GitHub
             </a>
             <span>{SITE.domain}</span>
             <span>Secure document intelligence</span>

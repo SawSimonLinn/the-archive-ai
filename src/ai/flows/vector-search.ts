@@ -3,7 +3,15 @@ import { embed } from 'ai';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getAuthenticatedUser } from '@/lib/supabase-server';
 
-export async function searchDocumentChunks(query: string, documentId: string): Promise<string[]> {
+type SearchDocumentChunksOptions = {
+  matchCount?: number;
+};
+
+export async function searchDocumentChunks(
+  query: string,
+  documentId: string,
+  options: SearchDocumentChunksOptions = {},
+): Promise<string[]> {
   const normalizedQuery = query.trim().slice(0, 8000);
   if (!normalizedQuery) throw new Error('Query is required');
 
@@ -20,6 +28,8 @@ export async function searchDocumentChunks(query: string, documentId: string): P
 
   if (!doc) throw new Error('Document not found');
 
+  const matchCount = Math.min(Math.max(Math.trunc(options.matchCount ?? 5), 1), 10);
+
   const { embedding } = await embed({
     model: openai.embedding('text-embedding-3-small'),
     value: normalizedQuery,
@@ -28,7 +38,7 @@ export async function searchDocumentChunks(query: string, documentId: string): P
   const { data, error } = await supabaseAdmin.rpc('match_document_chunks', {
     query_embedding: embedding,
     match_document_id: documentId,
-    match_count: 5,
+    match_count: matchCount,
   });
 
   if (error) throw error;

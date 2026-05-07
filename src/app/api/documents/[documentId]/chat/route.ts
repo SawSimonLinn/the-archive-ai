@@ -6,6 +6,15 @@ import {
   MAX_CHAT_MESSAGE_LENGTH,
   saveDocumentChatMessage,
 } from '@/lib/chat-messages';
+import {
+  CHAT_MODEL_IDS,
+  DEFAULT_CHAT_MODEL_ID,
+  DEFAULT_RETRIEVAL_MODE_ID,
+  RETRIEVAL_MODE_IDS,
+  canUseChatModel,
+  canUseRetrievalMode,
+  getRetrievalModeOption,
+} from '@/lib/chat-options';
 import { getUserPlan } from '@/lib/get-user-plan';
 import { checkChatRateLimit } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabase-admin';
@@ -31,6 +40,8 @@ type RouteContext = {
 
 const ChatRequestSchema = z.object({
   message: z.string().trim().min(1).max(MAX_CHAT_MESSAGE_LENGTH),
+  model: z.enum(CHAT_MODEL_IDS).optional(),
+  retrievalMode: z.enum(RETRIEVAL_MODE_IDS).optional(),
 });
 
 type UserMetadata = {
@@ -46,13 +57,13 @@ function normalizeCitationStyle(value: unknown) {
   return value === 'strict' || value === 'standard' ? value : 'standard';
 }
 
-async function getFallbackContext(documentId: string) {
+async function getFallbackContext(documentId: string, limit = 8) {
   const { data, error } = await supabaseAdmin
     .from('document_chunks')
     .select('content')
     .eq('document_id', documentId)
     .order('chunk_index', { ascending: true })
-    .limit(8);
+    .limit(Math.min(Math.max(Math.trunc(limit), 1), 10));
 
   if (error) throw error;
 
@@ -120,7 +131,11 @@ export async function POST(req: Request, context: RouteContext) {
     }
 
     const { documentId } = await context.params;
-    const { message } = parsed.data;
+    const {
+      message,
+      model = DEFAULT_CHAT_MODEL_ID,
+      retrievalMode = DEFAULT_RETRIEVAL_MODE_ID,
+    } = parsed.data;
 
     const { data: doc, error: docError } = await supabaseAdmin
       .from('documents')
@@ -134,6 +149,16 @@ export async function POST(req: Request, context: RouteContext) {
     }
 
     const plan = await getUserPlan(user.id);
+    if (!canUseChatModel(plan.id, model) || !canUseRetrievalMode(plan.id, retrievalMode)) {
+      return NextResponse.json(
+        {
+          error: 'premium_ai_required',
+          message: 'Upgrade to use premium AI models and research routing.',
+        },
+        { status: 403 }
+      );
+    }
+
     const chatLimit = plan.chatMessagesPerHour;
     if (chatLimit !== Infinity) {
       const allowed = await checkChatRateLimit(user.id, chatLimit);
@@ -152,21 +177,26 @@ export async function POST(req: Request, context: RouteContext) {
       content: message,
     });
 
+    const retrievalModeOption = getRetrievalModeOption(retrievalMode);
     let retrievedContext: string[] = [];
     try {
-      retrievedContext = await searchDocumentChunks(message, documentId);
+      retrievedContext = await searchDocumentChunks(message, documentId, {
+        matchCount: retrievalModeOption.matchCount,
+      });
     } catch (error) {
       console.error('Document vector search error:', error);
     }
 
     if (retrievedContext.length === 0) {
-      retrievedContext = await getFallbackContext(documentId);
+      retrievedContext = await getFallbackContext(documentId, retrievalModeOption.fallbackChunkCount);
     }
 
     const metadata = user.user_metadata as UserMetadata;
     const response = await ragQueryResponseGeneration({
       userQuery: message,
       retrievedContext,
+      chatModel: model,
+      retrievalMode,
       responseMode: normalizeAiResponseMode(metadata.ai_response_mode),
       citationStyle: normalizeCitationStyle(metadata.citation_style),
     });

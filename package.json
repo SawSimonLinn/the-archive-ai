@@ -1,7 +1,24 @@
 {
-  "name": "nextn",
+  "name": "the-archive-ai",
   "version": "0.1.0",
-  "private": true,
+  "description": "Open-source RAG-powered document intelligence website for private, source-cited document chat.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SawSimonLinn/the-archive-ai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SawSimonLinn/the-archive-ai/issues"
+  },
+  "homepage": "https://thearchiveai.xyz",
+  "keywords": [
+    "ai",
+    "document-intelligence",
+    "nextjs",
+    "openai",
+    "rag",
+    "supabase"
+  ],
   "engines": {
     "node": "22.x"
   },

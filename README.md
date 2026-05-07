@@ -6,6 +6,16 @@
 
 ![alt text](image.png)
 
+## Open Source
+
+The Archive.ai is open source under the [MIT License](LICENSE). Contributions, issue reports, and security disclosures are welcome.
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+- Report vulnerabilities privately through the process in [SECURITY.md](SECURITY.md).
+- Use `.env.example` as the template for local secrets; never commit real API keys, service role keys, webhook secrets, or production credentials.
+
+---
+
 ## What It Does
 
 - Upload PDF, DOCX, and TXT files via drag-and-drop
@@ -108,13 +118,13 @@ Create a `.env` file in the project root. Use `.env.example` as the template:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-OPENAI_API_KEY=your_openai_api_key_here
-STRIPE_SECRET_KEY=sk_test_or_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_or_live_...
-STRIPE_PRO_PRICE_ID=price_...
-STRIPE_TEAM_PRICE_ID=price_...
-STRIPE_LIVE_TEST_PRICE_ID=price_...
+OPENAI_API_KEY=your-openai-api-key
+STRIPE_SECRET_KEY=your-stripe-secret-key
+STRIPE_WEBHOOK_SECRET=your-stripe-webhook-secret
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your-stripe-publishable-key
+STRIPE_PRO_PRICE_ID=your-pro-price-id
+STRIPE_TEAM_PRICE_ID=your-team-price-id
+STRIPE_LIVE_TEST_PRICE_ID=your-live-test-price-id
 NEXT_PUBLIC_APP_URL=http://localhost:9002
 ```
 
@@ -182,24 +192,4 @@ npm run build
 
 ## License
 
-MIT License
-
-Copyright (c) 2026 Saw Simon Linn
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+The Archive.ai is released under the [MIT License](LICENSE).

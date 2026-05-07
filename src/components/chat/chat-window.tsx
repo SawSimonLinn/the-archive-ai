@@ -26,11 +26,29 @@ import {
   Lock,
   MessageSquare,
   FileText,
-  ExternalLink
+  ExternalLink,
+  SlidersHorizontal,
+  Brain,
+  Search,
+  Cpu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Message } from "@/lib/types";
 import { formatPlanLimit } from "@/lib/billing";
+import {
+  CHAT_MODEL_OPTIONS,
+  DEFAULT_CHAT_MODEL_ID,
+  DEFAULT_RETRIEVAL_MODE_ID,
+  RETRIEVAL_MODE_OPTIONS,
+  canUseChatModel,
+  canUseRetrievalMode,
+  getChatModelOption,
+  getRetrievalModeOption,
+  normalizeChatModelId,
+  normalizeRetrievalModeId,
+  type ChatModelId,
+  type RetrievalModeId,
+} from "@/lib/chat-options";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +56,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
 import { UploadZone, UploadResult } from "@/components/documents/upload-zone";
 import { UpgradeModal } from "@/components/upgrade-modal";
@@ -63,6 +87,11 @@ type AskDocumentResponse = {
   assistantMessage: SavedChatMessage;
 };
 
+type AskDocumentOptions = {
+  model: ChatModelId;
+  retrievalMode: RetrievalModeId;
+};
+
 type LoadedDocumentRef = StoredDocumentRef & {
   summary?: string | null;
   suggestedQuestions?: unknown;
@@ -82,6 +111,8 @@ type DocumentPreview = StoredDocumentRef & {
 
 const CURRENT_DOCUMENT_KEY = "archive.currentDocument";
 const PREVIOUS_DOCUMENT_KEY = "archive.previousDocument";
+const CHAT_MODEL_KEY = "archive.chatModel";
+const RETRIEVAL_MODE_KEY = "archive.retrievalMode";
 
 function readStoredDocument(key: string): StoredDocumentRef | null {
   if (typeof window === "undefined") return null;
@@ -104,6 +135,21 @@ function readStoredDocument(key: string): StoredDocumentRef | null {
 function writeStoredDocument(key: string, document: StoredDocumentRef) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(key, JSON.stringify(document));
+}
+
+function readStoredChatModel() {
+  if (typeof window === "undefined") return DEFAULT_CHAT_MODEL_ID;
+  return normalizeChatModelId(window.localStorage.getItem(CHAT_MODEL_KEY));
+}
+
+function readStoredRetrievalMode() {
+  if (typeof window === "undefined") return DEFAULT_RETRIEVAL_MODE_ID;
+  return normalizeRetrievalModeId(window.localStorage.getItem(RETRIEVAL_MODE_KEY));
+}
+
+function writeStoredChatPreference(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(key, value);
 }
 
 function clearStoredDocumentRefs(documentId: string) {
@@ -172,18 +218,30 @@ function buildInitialMessage(documentName: string, includeSummaryNote = false): 
   };
 }
 
-async function askDocumentQuestion(documentId: string, message: string): Promise<
-  | { rateLimited: true }
-  | { rateLimited: false; data: AskDocumentResponse }
+async function askDocumentQuestion(documentId: string, message: string, options: AskDocumentOptions): Promise<
+  | { rateLimited: true; premiumRequired: false }
+  | { rateLimited: false; premiumRequired: true }
+  | { rateLimited: false; premiumRequired: false; data: AskDocumentResponse }
 > {
   const res = await fetch(`/api/documents/${documentId}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({
+      message,
+      model: options.model,
+      retrievalMode: options.retrievalMode,
+    }),
   });
 
   if (res.status === 429) {
-    return { rateLimited: true };
+    return { rateLimited: true, premiumRequired: false };
+  }
+
+  if (res.status === 403) {
+    const data = await res.json().catch(() => null);
+    if (data?.error === "premium_ai_required") {
+      return { rateLimited: false, premiumRequired: true };
+    }
   }
 
   if (!res.ok) {
@@ -191,7 +249,19 @@ async function askDocumentQuestion(documentId: string, message: string): Promise
     throw new Error(data?.error ?? 'Failed to send chat message');
   }
 
-  return { rateLimited: false, data: await res.json() };
+  return { rateLimited: false, premiumRequired: false, data: await res.json() };
+}
+
+function ChatModelIcon({ modelId }: { modelId: ChatModelId }) {
+  if (modelId === "gpt-5.5") return <Brain className="h-4 w-4" />;
+  if (modelId === "gpt-4o") return <Cpu className="h-4 w-4" />;
+  return <Bot className="h-4 w-4" />;
+}
+
+function RetrievalModeIcon({ modeId }: { modeId: RetrievalModeId }) {
+  if (modeId === "research") return <Search className="h-4 w-4" />;
+  if (modeId === "llm") return <Brain className="h-4 w-4" />;
+  return <Files className="h-4 w-4" />;
 }
 
 function normalizeMarkdown(content: string) {
@@ -382,6 +452,11 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const [documentSummary, setDocumentSummary] = useState<string | null>(null);
   const [showTLDR, setShowTLDR] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showAiControls, setShowAiControls] = useState(false);
+  const [selectedChatModel, setSelectedChatModel] = useState<ChatModelId>(DEFAULT_CHAT_MODEL_ID);
+  const [selectedRetrievalMode, setSelectedRetrievalMode] = useState<RetrievalModeId>(DEFAULT_RETRIEVAL_MODE_ID);
+  const [draftChatModel, setDraftChatModel] = useState<ChatModelId>(DEFAULT_CHAT_MODEL_ID);
+  const [draftRetrievalMode, setDraftRetrievalMode] = useState<RetrievalModeId>(DEFAULT_RETRIEVAL_MODE_ID);
   const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; reason: UpgradeReason }>({ open: false, reason: "document_limit" });
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [previousDocument, setPreviousDocument] = useState<StoredDocumentRef | null>(null);
@@ -393,6 +468,63 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const { plan, isLoading: isPlanLoading } = useBillingPlan();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const updateSelectedChatModel = useCallback((modelId: ChatModelId) => {
+    setSelectedChatModel(modelId);
+    writeStoredChatPreference(CHAT_MODEL_KEY, modelId);
+  }, []);
+
+  const updateSelectedRetrievalMode = useCallback((modeId: RetrievalModeId) => {
+    setSelectedRetrievalMode(modeId);
+    writeStoredChatPreference(RETRIEVAL_MODE_KEY, modeId);
+  }, []);
+
+  const handleAiControlsOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      setDraftChatModel(selectedChatModel);
+      setDraftRetrievalMode(selectedRetrievalMode);
+    }
+
+    setShowAiControls(open);
+  }, [selectedChatModel, selectedRetrievalMode]);
+
+  const handleSaveAiControls = useCallback(() => {
+    updateSelectedChatModel(draftChatModel);
+    updateSelectedRetrievalMode(draftRetrievalMode);
+    setShowAiControls(false);
+    toast({
+      title: "AI Controls Saved",
+      description: `${getChatModelOption(draftChatModel).label} / ${getRetrievalModeOption(draftRetrievalMode).label}`,
+    });
+  }, [draftChatModel, draftRetrievalMode, updateSelectedChatModel, updateSelectedRetrievalMode]);
+
+  useEffect(() => {
+    const storedChatModel = readStoredChatModel();
+    const storedRetrievalMode = readStoredRetrievalMode();
+    setSelectedChatModel(storedChatModel);
+    setSelectedRetrievalMode(storedRetrievalMode);
+    setDraftChatModel(storedChatModel);
+    setDraftRetrievalMode(storedRetrievalMode);
+  }, []);
+
+  useEffect(() => {
+    if (isPlanLoading) return;
+
+    if (!canUseChatModel(plan.id, selectedChatModel)) {
+      updateSelectedChatModel(DEFAULT_CHAT_MODEL_ID);
+    }
+
+    if (!canUseRetrievalMode(plan.id, selectedRetrievalMode)) {
+      updateSelectedRetrievalMode(DEFAULT_RETRIEVAL_MODE_ID);
+    }
+  }, [
+    isPlanLoading,
+    plan.id,
+    selectedChatModel,
+    selectedRetrievalMode,
+    updateSelectedChatModel,
+    updateSelectedRetrievalMode,
+  ]);
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -754,11 +886,20 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
     setIsLoading(true);
 
     try {
-      const chatResult = await askDocumentQuestion(activeDocumentId, query);
+      const chatResult = await askDocumentQuestion(activeDocumentId, query, {
+        model: selectedChatModel,
+        retrievalMode: selectedRetrievalMode,
+      });
       if (chatResult.rateLimited) {
         setMessages(prev => prev.filter(m => m.id !== userMsg.id));
         setInput(query);
         setUpgradeModal({ open: true, reason: "rate_limit" });
+        return;
+      }
+      if (chatResult.premiumRequired) {
+        setMessages(prev => prev.filter(m => m.id !== userMsg.id));
+        setInput(query);
+        setUpgradeModal({ open: true, reason: "premium_ai" });
         return;
       }
 
@@ -873,6 +1014,13 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
       </div>
     );
   }
+
+  const activeChatModelOption = getChatModelOption(selectedChatModel);
+  const activeRetrievalModeOption = getRetrievalModeOption(selectedRetrievalMode);
+  const draftChatModelOption = getChatModelOption(draftChatModel);
+  const draftRetrievalModeOption = getRetrievalModeOption(draftRetrievalMode);
+  const hasDraftAiChanges =
+    draftChatModel !== selectedChatModel || draftRetrievalMode !== selectedRetrievalMode;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-4 border-foreground bg-card">
@@ -1100,6 +1248,165 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
         onClose={() => setUpgradeModal(prev => ({ ...prev, open: false }))}
       />
 
+      {/* AI Controls Modal */}
+      <Dialog open={showAiControls} onOpenChange={handleAiControlsOpenChange}>
+        <DialogContent hideCloseButton className="flex max-h-[90dvh] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-none border-4 border-foreground bg-card p-0 shadow-[18px_18px_0px_0px_rgba(0,0,0,1)]">
+          <DialogHeader className="flex-row items-center justify-between space-y-0 border-b-4 border-foreground bg-foreground p-5 text-background sm:p-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center bg-primary text-foreground">
+                <SlidersHorizontal className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="font-headline text-2xl font-black uppercase leading-none tracking-tighter">
+                  AI Controls
+                </DialogTitle>
+                <DialogDescription className="mt-1 block truncate font-mono text-[9px] font-bold uppercase tracking-[0.28em] text-background/55">
+                  {draftChatModelOption.label} / {draftRetrievalModeOption.label}
+                </DialogDescription>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowAiControls(false)}
+              className="h-10 w-10 shrink-0 rounded-none text-background hover:bg-primary hover:text-foreground"
+              title="Close AI controls"
+            >
+              <X className="h-6 w-6" />
+            </Button>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-headline text-lg font-black uppercase tracking-tighter">Model</h3>
+                {plan.id === "free" && (
+                  <span className="border-2 border-foreground bg-muted px-2 py-1 font-mono text-[8px] font-black uppercase tracking-widest">
+                    Upgrade
+                  </span>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {CHAT_MODEL_OPTIONS.map((option) => {
+                  const isSelected = draftChatModel === option.id;
+                  const isLocked = !canUseChatModel(plan.id, option.id);
+
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => {
+                        if (isLocked) {
+                          setShowAiControls(false);
+                          setUpgradeModal({ open: true, reason: "premium_ai" });
+                          return;
+                        }
+
+                        setDraftChatModel(option.id);
+                      }}
+                      className={cn(
+                        "min-h-24 border-2 border-foreground p-3 text-left transition-all",
+                        isSelected
+                          ? "bg-primary shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                          : "bg-card hover:bg-primary/10",
+                        isLocked && "bg-muted/50 text-foreground/55 hover:bg-muted"
+                      )}
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <ChatModelIcon modelId={option.id} />
+                          <span className="truncate font-headline text-base font-black uppercase tracking-tighter">
+                            {option.label}
+                          </span>
+                        </span>
+                        {isLocked && <Lock className="h-4 w-4 shrink-0" />}
+                      </span>
+                      <span className="mt-2 block font-mono text-[9px] font-bold uppercase leading-relaxed tracking-widest opacity-55">
+                        {option.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-headline text-lg font-black uppercase tracking-tighter">Route</h3>
+                <span className="font-mono text-[9px] font-black uppercase tracking-widest opacity-45">
+                  Document Grounded
+                </span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {RETRIEVAL_MODE_OPTIONS.map((option) => {
+                  const isSelected = draftRetrievalMode === option.id;
+                  const isLocked = !canUseRetrievalMode(plan.id, option.id);
+
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => {
+                        if (isLocked) {
+                          setShowAiControls(false);
+                          setUpgradeModal({ open: true, reason: "premium_ai" });
+                          return;
+                        }
+
+                        setDraftRetrievalMode(option.id);
+                      }}
+                      className={cn(
+                        "min-h-24 border-2 border-foreground p-3 text-left transition-all",
+                        isSelected
+                          ? "bg-foreground text-background shadow-[4px_4px_0px_0px_rgba(229,184,28,1)]"
+                          : "bg-card hover:bg-foreground/5",
+                        isLocked && "bg-muted/50 text-foreground/55 hover:bg-muted"
+                      )}
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <RetrievalModeIcon modeId={option.id} />
+                          <span className="truncate font-headline text-base font-black uppercase tracking-tighter">
+                            {option.label}
+                          </span>
+                        </span>
+                        {isLocked && <Lock className="h-4 w-4 shrink-0" />}
+                      </span>
+                      <span className="mt-2 block font-mono text-[9px] font-bold uppercase leading-relaxed tracking-widest opacity-55">
+                        {option.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+          <div className="flex shrink-0 flex-col gap-3 border-t-4 border-foreground bg-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 font-mono text-[9px] font-black uppercase tracking-widest opacity-55">
+              {hasDraftAiChanges ? "Unsaved selection" : "Current selection"}
+            </div>
+            <div className="grid gap-2 sm:flex sm:items-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAiControls(false)}
+                className="h-11 rounded-none border-2 border-foreground bg-background px-5 font-black uppercase tracking-tighter hover:bg-foreground hover:text-background"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveAiControls}
+                className="h-11 rounded-none border-2 border-foreground bg-primary px-6 font-black uppercase tracking-tighter text-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+              >
+                <Check className="h-4 w-4" /> Save Selection
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Messages */}
       <ScrollArea className="min-h-0 flex-1 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:32px_32px]" ref={scrollRef}>
         <div className="space-y-5 p-4">
@@ -1185,6 +1492,26 @@ export function ChatWindow({ initialDocId }: { initialDocId?: string }) {
             handleSend();
           }}
         >
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={() => handleAiControlsOpenChange(true)}
+                  disabled={isLoading}
+                  className="h-14 w-14 shrink-0 rounded-none border-4 border-foreground bg-background text-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-x-1 hover:translate-y-1 hover:bg-primary hover:shadow-none"
+                  title={`${activeChatModelOption.label} / ${activeRetrievalModeOption.label}`}
+                >
+                  <SlidersHorizontal className="h-6 w-6" />
+                  <span className="sr-only">AI controls</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="rounded-none border-2 border-foreground bg-foreground font-mono text-[10px] font-black uppercase tracking-widest text-background">
+                {activeChatModelOption.label} / {activeRetrievalModeOption.label}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Input
             placeholder={`Ask about ${activeFile}...`}
             value={input}
