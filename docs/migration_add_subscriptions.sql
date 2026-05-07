@@ -18,5 +18,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS user_subscriptions_user_id_idx ON user_subscri
 ALTER TABLE user_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Users can read their own subscription; all writes go through the service role (webhook)
+DROP POLICY IF EXISTS "subscriptions_read_own" ON user_subscriptions;
 CREATE POLICY "subscriptions_read_own" ON user_subscriptions
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);

@@ -20,13 +20,27 @@ ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
 -- Documents: users can only see and modify their own rows
+DROP POLICY IF EXISTS "documents_owner" ON documents;
 CREATE POLICY "documents_owner" ON documents
-  FOR ALL USING (auth.uid() = user_id);
+  FOR ALL
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- Chat messages: users can only see messages belonging to their documents
+DROP POLICY IF EXISTS "chat_messages_owner" ON chat_messages;
 CREATE POLICY "chat_messages_owner" ON chat_messages
-  FOR ALL USING (
-    source_document_id IN (
+  FOR ALL
+  TO authenticated
+  USING (
+    auth.uid() = user_id
+    AND source_document_id IN (
+      SELECT id FROM documents WHERE user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    auth.uid() = user_id
+    AND source_document_id IN (
       SELECT id FROM documents WHERE user_id = auth.uid()
     )
   );

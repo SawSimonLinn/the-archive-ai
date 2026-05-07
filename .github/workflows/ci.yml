@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Build, Audit, And Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      OPENAI_API_KEY: sk-ci-openai-key
+      STRIPE_SECRET_KEY: sk_test_ci_key
+      STRIPE_WEBHOOK_SECRET: whsec_ci_secret
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_key
+      STRIPE_PRO_PRICE_ID: price_ci_pro
+      STRIPE_TEAM_PRICE_ID: price_ci_team
+      STRIPE_LIVE_TEST_PRICE_ID: price_ci_live_test
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3210
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Audit Production Dependencies
+        run: npm audit --omit=dev
+
+      - name: Static Readiness Check
+        run: npm run readiness:static
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke Test Routes
+        run: npm run test:smoke

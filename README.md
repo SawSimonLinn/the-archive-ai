@@ -99,8 +99,10 @@ the-archive-ai/
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22
 - An [OpenAI API key](https://platform.openai.com/api-keys)
+- A Supabase project with Auth enabled
+- Stripe account credentials if you want paid plans and billing flows
 
 ### 1. Clone & install
 
@@ -128,7 +130,23 @@ STRIPE_LIVE_TEST_PRICE_ID=your-live-test-price-id
 NEXT_PUBLIC_APP_URL=http://localhost:9002
 ```
 
-### 3. Run the development server
+### 3. Set up Supabase database and storage
+
+For a fresh Supabase project, open **Supabase Dashboard > SQL Editor** and run:
+
+```sql
+-- docs/migration_000_initial_schema.sql
+```
+
+That bootstrap migration creates the app tables, `pgvector` extension, private
+`documents` storage bucket, row-level security policies, storage policies, and
+the `match_document_chunks` RPC used by semantic search.
+
+The other `docs/migration_*.sql` files are incremental migrations kept for
+existing deployments. They are idempotent, but new self-hosted installs should
+start with `docs/migration_000_initial_schema.sql`.
+
+### 4. Run the development server
 
 ```bash
 npm run dev
@@ -144,6 +162,9 @@ The app runs at [http://localhost:9002](http://localhost:9002)
 | `npm run build`        | Production build                                  |
 | `npm start`            | Start production server                           |
 | `npm run typecheck`    | TypeScript type check (no emit)                   |
+| `npm run readiness:static` | Verify repo-level production readiness assumptions |
+| `npm run test:smoke`   | Smoke-test auth, upload, chat, billing, and webhook routes |
+| `npm run ci`           | Run audit, readiness, typecheck, build, and smoke tests |
 
 ---
 
@@ -180,7 +201,7 @@ The project is configured for **Firebase App Hosting** via `apphosting.yaml`.
 
 Before deploying, complete the production checklist in
 [`docs/production-readiness.md`](docs/production-readiness.md): run the Supabase
-migrations, create App Hosting secrets, configure Supabase Auth redirect URLs,
+bootstrap migration, create App Hosting secrets, configure Supabase Auth redirect URLs,
 configure the Stripe webhook endpoint, and smoke-test the deployed app.
 
 ```bash
