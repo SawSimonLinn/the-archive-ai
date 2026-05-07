@@ -1,78 +1,156 @@
-import { SiteHeader } from '@/components/layout/site-header';
-import { SiteFooter } from '@/components/layout/site-footer';
-import { Activity, Zap, CheckCircle, Clock } from 'lucide-react';
+import type { Metadata } from "next";
+import { Activity, AlertCircle, CheckCircle2, Clock, Mail } from "lucide-react";
+import { SiteFooter } from "@/components/layout/site-footer";
+import { SiteHeader } from "@/components/layout/site-header";
+import { SITE } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "System Status | The Archive.ai",
+  description:
+    "Public status information for The Archive.ai web app, document uploads, AI answers, and billing.",
+  alternates: {
+    canonical: "/uptime",
+  },
+};
+
+const systems = [
+  {
+    name: "Web app",
+    status: "Operational",
+    details: "Public pages, authentication entry points, dashboard navigation, and account settings.",
+  },
+  {
+    name: "Document uploads",
+    status: "Operational",
+    details: "PDF, TXT, and DOCX upload flow, text extraction, and document metadata storage.",
+  },
+  {
+    name: "AI answers",
+    status: "Operational",
+    details: "Document analysis, embeddings, vector search, and cited chat responses.",
+  },
+  {
+    name: "Billing",
+    status: "Operational",
+    details: "Stripe checkout, customer portal, subscription updates, and webhook processing.",
+  },
+];
+
+const responseSteps = [
+  "Confirm whether the issue affects authentication, upload processing, chat responses, or billing.",
+  "Post a user-facing update on this page when the issue is confirmed and user impact is clear.",
+  "Prioritize account safety, data integrity, and paid-plan access before non-critical fixes.",
+  "Publish a short resolution note after the incident is mitigated.",
+];
 
 export default function UptimePage() {
-  const regions = [
-    { name: "NEURAL_NODE_AMER", status: "Operational", latency: "14ms", load: "24%" },
-    { name: "NEURAL_NODE_EMEA", status: "Operational", latency: "28ms", load: "18%" },
-    { name: "NEURAL_NODE_APAC", status: "Operational", latency: "42ms", load: "32%" },
-  ];
-
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
+    <div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
       <SiteHeader />
-      
-      <main className="flex-1 container px-6 py-24">
-        <div className="max-w-4xl mx-auto space-y-16">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-l-8 border-primary pl-8">
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-3 bg-foreground text-background px-4 py-1 font-mono text-xs font-bold uppercase tracking-widest">
-                <Activity className="h-4 w-4" /> Live_Sync: ACTIVE
+
+      <main className="flex-1">
+        <section className="border-b-2 border-foreground px-6 py-20 md:py-24">
+          <div className="container mx-auto grid gap-12 lg:grid-cols-12 lg:items-end">
+            <div className="lg:col-span-8 space-y-6 border-l-8 border-primary pl-8">
+              <div className="inline-flex items-center gap-3 bg-foreground px-4 py-1 font-mono text-xs font-bold uppercase tracking-widest text-background">
+                <Activity className="h-4 w-4" /> Public status
               </div>
-              <h1 className="text-6xl md:text-8xl font-headline font-black uppercase leading-[0.85] tracking-tighter">
+              <h1 className="text-5xl font-headline font-black uppercase leading-[0.85] tracking-tighter sm:text-7xl md:text-8xl">
                 System <br />
-                Vitals<span className="text-primary">.</span>
+                Status<span className="text-primary">.</span>
               </h1>
+              <p className="max-w-2xl text-lg font-medium leading-relaxed text-muted-foreground">
+                Service availability for the web app, document processing, AI answers, and billing.
+              </p>
             </div>
-            <div className="bg-primary p-6 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-center shrink-0">
-               <span className="font-mono text-[10px] font-black uppercase tracking-widest">Current Uptime</span>
-               <div className="text-5xl font-headline font-black">99.999%</div>
-            </div>
-          </div>
 
-          <div className="space-y-8">
-            <h2 className="text-2xl font-headline font-black uppercase flex items-center gap-3">
-              <Zap className="h-6 w-6 text-primary" /> Active Cluster Status
-            </h2>
-            <div className="grid gap-4">
-              {regions.map((region, i) => (
-                <div key={i} className="flex items-center justify-between p-8 border-4 border-foreground bg-card shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                  <div className="flex items-center gap-6">
-                    <div className="w-4 h-4 rounded-none bg-primary animate-pulse" />
-                    <span className="font-mono text-lg font-black tracking-widest">{region.name}</span>
-                  </div>
-                  <div className="flex gap-12 font-mono text-[10px] font-bold uppercase tracking-widest opacity-60">
-                    <span>Latency: {region.latency}</span>
-                    <span>Load: {region.load}</span>
-                    <span className="text-primary">{region.status}</span>
-                  </div>
-                </div>
-              ))}
+            <div className="lg:col-span-4 border-4 border-foreground bg-primary p-8 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
+              <CheckCircle2 className="h-10 w-10" />
+              <p className="mt-6 font-mono text-[10px] font-black uppercase tracking-[0.35em] text-primary-foreground/70">
+                Current summary
+              </p>
+              <p className="mt-2 text-4xl font-headline font-black tracking-tighter">
+                Operational
+              </p>
+              <p className="mt-5 text-sm font-bold uppercase tracking-tight text-primary-foreground/75">
+                Last reviewed {SITE.policyUpdatedAt}
+              </p>
             </div>
           </div>
+        </section>
 
-          <div className="border-4 border-foreground p-12 bg-muted/30">
-            <h2 className="text-2xl font-headline font-black uppercase mb-8 flex items-center gap-3">
-              <Clock className="h-6 w-6 text-primary" /> Incident Archive
-            </h2>
-            <div className="space-y-6">
-              {[
-                { date: "MAR 14, 2024", type: "MAINTENANCE", desc: "Scheduled neural weights optimization (COMPLETED)" },
-                { date: "FEB 28, 2024", type: "UPDATE", desc: "Security patch for vector vault encryption (COMPLETED)" },
-                { date: "JAN 12, 2024", type: "PERFORMANCE", desc: "Latency spikes in EMEA cluster (RESOLVED)" }
-              ].map((log, i) => (
-                <div key={i} className="flex gap-8 p-6 border-2 border-foreground/20 bg-background group hover:border-primary transition-colors">
-                  <span className="font-mono text-sm font-black w-32 shrink-0">{log.date}</span>
-                  <div>
-                    <span className="inline-block px-2 py-0.5 bg-foreground text-background font-mono text-[9px] font-black mb-2">{log.type}</span>
-                    <p className="font-bold uppercase tracking-tighter">{log.desc}</p>
-                  </div>
+        <section className="px-6 py-20">
+          <div className="container mx-auto grid gap-6 md:grid-cols-2">
+            {systems.map((system) => (
+              <article
+                key={system.name}
+                className="border-4 border-foreground bg-card p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="text-2xl font-headline font-black uppercase tracking-tighter">
+                    {system.name}
+                  </h2>
+                  <span className="inline-flex items-center gap-2 bg-primary px-3 py-1 font-mono text-[10px] font-black uppercase tracking-widest">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {system.status}
+                  </span>
                 </div>
-              ))}
-            </div>
+                <p className="mt-5 text-sm font-medium leading-relaxed text-muted-foreground">
+                  {system.details}
+                </p>
+              </article>
+            ))}
           </div>
-        </div>
+        </section>
+
+        <section className="border-y-2 border-foreground bg-foreground px-6 py-16 text-background">
+          <div className="container mx-auto grid gap-10 lg:grid-cols-12">
+            <div className="lg:col-span-4">
+              <div className="inline-flex items-center gap-3 bg-primary px-4 py-1 font-mono text-xs font-bold uppercase tracking-widest text-foreground">
+                <Clock className="h-4 w-4" /> Incident process
+              </div>
+              <h2 className="mt-6 text-3xl font-headline font-black uppercase tracking-tighter">
+                How updates are handled
+              </h2>
+              <p className="mt-3 text-sm font-medium leading-relaxed text-background/65">
+                This page is the public status record until a dedicated automated status provider is connected.
+              </p>
+            </div>
+            <ol className="lg:col-span-8 grid gap-4">
+              {responseSteps.map((step, index) => (
+                <li key={step} className="flex gap-5 border-2 border-background/15 p-5">
+                  <span className="font-mono text-xs font-black text-primary">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="text-sm font-medium leading-relaxed text-background/75">
+                    {step}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section className="px-6 py-16">
+          <div className="container mx-auto flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="mt-1 h-8 w-8 text-primary" />
+              <div>
+                <h2 className="text-2xl font-headline font-black uppercase tracking-tighter">
+                  Experiencing an issue?
+                </h2>
+                <p className="mt-2 max-w-xl text-sm font-medium leading-relaxed text-muted-foreground">
+                  Send the affected account, approximate time, browser, and whether the issue is upload, chat, auth, or billing related.
+                </p>
+              </div>
+            </div>
+            <a
+              href={`mailto:${SITE.supportEmail}`}
+              className="inline-flex h-14 items-center justify-center gap-2 border-2 border-foreground bg-foreground px-6 text-sm font-black uppercase tracking-tighter text-background transition-colors hover:bg-primary hover:text-foreground"
+            >
+              Contact support <Mail className="h-4 w-4" />
+            </a>
+          </div>
+        </section>
       </main>
 
       <SiteFooter />

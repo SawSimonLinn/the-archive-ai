@@ -6,6 +6,7 @@ import { serializePlan, type BillingAccountResponse, type BillingPlanSummary } f
 export function useBillingPlan() {
   const [plan, setPlan] = useState<BillingPlanSummary>(() => serializePlan("free"));
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -19,10 +20,17 @@ export function useBillingPlan() {
         cache: "no-store",
       });
 
+      if (res.status === 401) {
+        setPlan(serializePlan("free"));
+        setIsAuthenticated(false);
+        return null;
+      }
+
       if (!res.ok) return null;
 
       const data = (await res.json()) as BillingAccountResponse;
       setPlan(data.plan);
+      setIsAuthenticated(true);
       return data;
     } finally {
       setIsLoading(false);
@@ -38,5 +46,5 @@ export function useBillingPlan() {
     return () => window.removeEventListener("archive:billing-changed", handleBillingChanged);
   }, [refresh]);
 
-  return { plan, isLoading, refresh };
+  return { plan, isLoading, refresh, isAuthenticated };
 }

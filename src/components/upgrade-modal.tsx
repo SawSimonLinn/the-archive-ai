@@ -28,8 +28,8 @@ const REASON_COPY: Record<UpgradeReason, { title: string; description: string }>
     description: `You've hit the free plan limit of ${PLANS.free.chatMessagesPerHour} chats per hour. Upgrade for unlimited conversations.`,
   },
   multi_document_upload: {
-    title: "Batch Uploads Are Paid",
-    description: "Free accounts can upload one document at a time. Upgrade to add multiple files in one upload.",
+    title: "Multiple Uploads Are Paid",
+    description: "Free accounts can upload one document at a time. Upgrade to add multiple documents in one upload.",
   },
 };
 

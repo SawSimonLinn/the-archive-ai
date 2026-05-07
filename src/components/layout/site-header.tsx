@@ -33,12 +33,12 @@ export function SiteHeader() {
             <Archive className="h-6 w-6 text-background" />
           </div>
           <span className="font-headline font-black text-2xl tracking-tighter uppercase">
-            The Archive<span className="text-primary">.ai</span>
+            THE ARCHIVE <span className="text-primary">AI</span>
           </span>
         </Link>
 
         <nav className="hidden lg:flex gap-10 items-center">
-          <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/#manifesto">
+          <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/about">
             About
           </Link>
           <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/#system">

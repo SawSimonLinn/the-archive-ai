@@ -84,7 +84,7 @@ export function UploadZone({ onUploadSuccess, onLimitReached, onUpgradeRequired,
 
   const promptMultiUploadUpgrade = useCallback(() => {
     toast({
-      title: "Batch Uploads Require Pro",
+      title: "Multiple Uploads Require Pro",
       description: "Free accounts can upload one document at a time.",
     });
     onUpgradeRequired?.("multi_document_upload");
