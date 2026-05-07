@@ -1,12 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { serializePlan, type BillingAccountResponse, type BillingPlanSummary } from "@/lib/billing";
 
 export function useBillingPlan() {
+  const isMountedRef = useRef(false);
   const [plan, setPlan] = useState<BillingPlanSummary>(() => serializePlan("free"));
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -21,6 +29,7 @@ export function useBillingPlan() {
       });
 
       if (res.status === 401) {
+        if (!isMountedRef.current) return null;
         setPlan(serializePlan("free"));
         setIsAuthenticated(false);
         return null;
@@ -29,11 +38,12 @@ export function useBillingPlan() {
       if (!res.ok) return null;
 
       const data = (await res.json()) as BillingAccountResponse;
+      if (!isMountedRef.current) return data;
       setPlan(data.plan);
       setIsAuthenticated(true);
       return data;
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) setIsLoading(false);
     }
   }, []);
 

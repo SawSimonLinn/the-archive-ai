@@ -33,6 +33,19 @@ const ChatRequestSchema = z.object({
   message: z.string().trim().min(1).max(MAX_CHAT_MESSAGE_LENGTH),
 });
 
+type UserMetadata = {
+  ai_response_mode?: unknown;
+  citation_style?: unknown;
+};
+
+function normalizeAiResponseMode(value: unknown) {
+  return value === 'concise' || value === 'detailed' || value === 'balanced' ? value : 'balanced';
+}
+
+function normalizeCitationStyle(value: unknown) {
+  return value === 'strict' || value === 'standard' ? value : 'standard';
+}
+
 async function getFallbackContext(documentId: string) {
   const { data, error } = await supabaseAdmin
     .from('document_chunks')
@@ -150,9 +163,12 @@ export async function POST(req: Request, context: RouteContext) {
       retrievedContext = await getFallbackContext(documentId);
     }
 
+    const metadata = user.user_metadata as UserMetadata;
     const response = await ragQueryResponseGeneration({
       userQuery: message,
       retrievedContext,
+      responseMode: normalizeAiResponseMode(metadata.ai_response_mode),
+      citationStyle: normalizeCitationStyle(metadata.citation_style),
     });
 
     const assistantMessage = await saveDocumentChatMessage({

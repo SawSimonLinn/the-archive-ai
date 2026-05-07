@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table"
 import {
   Bell,
+  Bot,
   CreditCard,
   ExternalLink,
   FileText,
@@ -46,10 +47,61 @@ type UserMetadata = {
   bio?: unknown;
   email_alerts?: unknown;
   weekly_report?: unknown;
+  ai_response_mode?: unknown;
+  citation_style?: unknown;
 };
 
 type CheckoutPlanId = "pro" | "team" | "live_test";
 type OAuthProviderId = "google" | "github";
+type AiResponseMode = "concise" | "balanced" | "detailed";
+type CitationStyle = "standard" | "strict";
+
+const aiResponseModeOptions = [
+  {
+    id: "concise",
+    label: "Concise",
+    description: "Short direct answers",
+  },
+  {
+    id: "balanced",
+    label: "Balanced",
+    description: "Default research depth",
+  },
+  {
+    id: "detailed",
+    label: "Detailed",
+    description: "Expanded breakdowns",
+  },
+] satisfies Array<{
+  id: AiResponseMode;
+  label: string;
+  description: string;
+}>;
+
+const citationStyleOptions = [
+  {
+    id: "standard",
+    label: "Standard",
+    description: "Use evidence where helpful",
+  },
+  {
+    id: "strict",
+    label: "Strict",
+    description: "Tie claims to document text",
+  },
+] satisfies Array<{
+  id: CitationStyle;
+  label: string;
+  description: string;
+}>;
+
+function normalizeAiResponseMode(value: unknown): AiResponseMode {
+  return value === "concise" || value === "detailed" || value === "balanced" ? value : "balanced";
+}
+
+function normalizeCitationStyle(value: unknown): CitationStyle {
+  return value === "strict" || value === "standard" ? value : "standard";
+}
 
 function GoogleIcon() {
   return (
@@ -98,6 +150,7 @@ function getIdentityLinkErrorDescription(message: string) {
 }
 
 export default function SettingsPage() {
+  const isMountedRef = useRef(false);
   const [billing, setBilling] = useState<BillingAccountResponse | null>(null);
   const [identities, setIdentities] = useState<UserIdentity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -112,6 +165,8 @@ export default function SettingsPage() {
   const [bio, setBio] = useState("");
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [weeklyReport, setWeeklyReport] = useState(false);
+  const [aiResponseMode, setAiResponseMode] = useState<AiResponseMode>("balanced");
+  const [citationStyle, setCitationStyle] = useState<CitationStyle>("standard");
 
   const plan: BillingPlanSummary = billing?.plan ?? serializePlan("free");
   const transactions = billing?.transactions ?? [];
@@ -119,8 +174,15 @@ export default function SettingsPage() {
   const currentPeriodEnd = billing?.subscription.currentPeriodEnd ?? null;
   const hasActiveSubscription = subscriptionStatus === "active" || subscriptionStatus === "trialing";
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const loadSettings = useCallback(async () => {
-    setIsLoading(true);
+    if (isMountedRef.current) setIsLoading(true);
     let shouldLoadBilling = false;
 
     try {
@@ -132,16 +194,20 @@ export default function SettingsPage() {
 
       const user = userData.user;
       if (!user) {
+        if (!isMountedRef.current) return;
         setBilling(null);
         setIdentities([]);
       } else {
         shouldLoadBilling = true;
+        if (!isMountedRef.current) return;
         const metadata = user.user_metadata as UserMetadata;
         setEmail(user.email ?? "");
         setFullName(typeof metadata.full_name === "string" ? metadata.full_name : "");
         setBio(typeof metadata.bio === "string" ? metadata.bio : "");
         setEmailAlerts(typeof metadata.email_alerts === "boolean" ? metadata.email_alerts : true);
         setWeeklyReport(typeof metadata.weekly_report === "boolean" ? metadata.weekly_report : false);
+        setAiResponseMode(normalizeAiResponseMode(metadata.ai_response_mode));
+        setCitationStyle(normalizeCitationStyle(metadata.citation_style));
 
         if (identityError) {
           toast({
@@ -153,6 +219,7 @@ export default function SettingsPage() {
         setIdentities(identityData?.identities ?? []);
       }
     } catch {
+      if (!isMountedRef.current) return;
       toast({
         variant: "destructive",
         title: "Settings Load Failed",
@@ -161,7 +228,7 @@ export default function SettingsPage() {
     }
 
     if (!shouldLoadBilling) {
-      setIsLoading(false);
+      if (isMountedRef.current) setIsLoading(false);
       return;
     }
 
@@ -174,19 +241,21 @@ export default function SettingsPage() {
       );
       if (billingResponse.ok) {
         const data = (await billingResponse.json()) as BillingAccountResponse;
+        if (!isMountedRef.current) return;
         setBilling(data);
         window.dispatchEvent(new CustomEvent("archive:billing-changed"));
       } else {
         throw new Error("Billing request failed");
       }
     } catch {
+      if (!isMountedRef.current) return;
       toast({
         variant: "destructive",
         title: "Billing Load Failed",
         description: "Could not load account billing details.",
       });
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) setIsLoading(false);
     }
   }, []);
 
@@ -207,6 +276,8 @@ export default function SettingsPage() {
         bio: bio.trim(),
         email_alerts: emailAlerts,
         weekly_report: weeklyReport,
+        ai_response_mode: aiResponseMode,
+        citation_style: citationStyle,
       },
     });
 
@@ -387,6 +458,88 @@ export default function SettingsPage() {
                   onCheckedChange={setWeeklyReport}
                   className="h-6 w-12 rounded-none border-2 border-foreground data-[state=checked]:bg-primary"
                 />
+              </div>
+            </div>
+
+            <Separator className="h-px bg-foreground/10" />
+
+            <div className="space-y-4 border-2 border-foreground bg-muted/30 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center bg-foreground text-background">
+                  <Bot className="h-4 w-4" />
+                </div>
+                <div>
+                  <h4 className="font-headline text-base font-black uppercase tracking-tighter">
+                    Archive Preferences
+                  </h4>
+                  <p className="font-mono text-[9px] font-bold uppercase tracking-widest opacity-45">
+                    Document chat defaults
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="font-mono text-[10px] font-bold uppercase tracking-widest opacity-60">
+                  AI Response Mode
+                </Label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {aiResponseModeOptions.map((option) => {
+                    const isSelected = aiResponseMode === option.id;
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setAiResponseMode(option.id)}
+                        className={cn(
+                          "min-h-20 border-2 border-foreground p-3 text-left transition-all",
+                          isSelected
+                            ? "bg-primary shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+                            : "bg-card hover:bg-primary/10",
+                        )}
+                      >
+                        <span className="block font-headline text-base font-black uppercase tracking-tighter">
+                          {option.label}
+                        </span>
+                        <span className="mt-1 block font-mono text-[9px] font-bold uppercase leading-relaxed tracking-widest opacity-50">
+                          {option.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="font-mono text-[10px] font-bold uppercase tracking-widest opacity-60">
+                  Evidence Style
+                </Label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {citationStyleOptions.map((option) => {
+                    const isSelected = citationStyle === option.id;
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setCitationStyle(option.id)}
+                        className={cn(
+                          "min-h-16 border-2 border-foreground p-3 text-left transition-all",
+                          isSelected
+                            ? "bg-foreground text-background shadow-[3px_3px_0px_0px_rgba(229,184,28,1)]"
+                            : "bg-card hover:bg-foreground/5",
+                        )}
+                      >
+                        <span className="block font-headline text-sm font-black uppercase tracking-tighter">
+                          {option.label}
+                        </span>
+                        <span className="mt-1 block font-mono text-[9px] font-bold uppercase leading-relaxed tracking-widest opacity-50">
+                          {option.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

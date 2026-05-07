@@ -2,12 +2,12 @@
 "use client"
 
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarInset, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenuSub, SidebarMenuSubItem } from "@/components/ui/sidebar";
-import { Archive, MessageSquare, Settings, LogOut, LayoutDashboard, Fingerprint, FileText, MoreVertical, Pencil, Trash2, Zap, CreditCard, AlertTriangle, X } from "lucide-react";
+import { Archive, MessageSquare, Settings, LogOut, LayoutDashboard, Sparkles, FileText, MoreVertical, Pencil, Trash2, Zap, CreditCard, AlertTriangle, X } from "lucide-react";
 import { formatPlanLimit } from "@/lib/billing";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -72,6 +72,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const isMountedRef = useRef(false);
   const [docs, setDocs] = useState<SidebarDocument[]>([]);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
 
@@ -92,10 +93,18 @@ export default function DashboardLayout({
   const documentUsageLabel = `${docs.length}/${formatPlanLimit(documentLimit)} docs`;
   const isFreePlan = plan.id === "free";
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const fetchDocs = useCallback(async () => {
     const res = await fetch('/api/documents', { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
+    if (!isMountedRef.current) return;
     setDocs((data.documents ?? []).filter((doc: Partial<SidebarDocument>) => doc.id && doc.name));
   }, []);
 
@@ -107,9 +116,13 @@ export default function DashboardLayout({
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.replace("/auth");
+      if (!cancelled && isMountedRef.current && !session) router.replace("/auth");
     });
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   useEffect(() => {
@@ -376,8 +389,11 @@ export default function DashboardLayout({
                 <SidebarTrigger className="h-10 w-10 border-2 border-foreground rounded-none" />
                 <Separator orientation="vertical" className="h-8 border-foreground/20" />
                 <div className="flex items-center gap-2">
-                  <Fingerprint className="h-4 w-4 text-primary" />
-                  <h1 className="font-headline font-black text-lg tracking-tighter uppercase">ARCHIVE_SYSTEM_V4</h1>
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <h1 className="font-headline text-lg font-black uppercase tracking-tighter">Linna</h1>
+                  <span className="border-2 border-foreground bg-primary px-1.5 py-0.5 font-mono text-[10px] font-black uppercase leading-none tracking-widest text-foreground">
+                    4.2
+                  </span>
                 </div>
               </div>
               <div className="hidden md:flex items-center gap-4 font-mono text-[10px] font-bold uppercase tracking-widest opacity-40">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Files, Database, ArrowRight, Zap, ShieldCheck, Activity, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { formatPlanLimit } from "@/lib/billing";
 import { useBillingPlan } from "@/hooks/use-billing-plan";
@@ -19,19 +20,35 @@ type DashboardDocument = {
 export default function DashboardOverview() {
   const [documents, setDocuments] = useState<DashboardDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { plan, isLoading: isPlanLoading } = useBillingPlan();
+  const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
 
     const loadDocuments = async () => {
       try {
+        setLoadError(null);
         const res = await fetch('/api/documents', { cache: 'no-store' });
-        if (!res.ok) throw new Error('Failed to load documents');
+
+        if (res.status === 401) {
+          router.replace("/auth");
+          return;
+        }
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error ?? 'Failed to load documents');
+        }
 
         const data = await res.json();
         if (!cancelled) {
           setDocuments(data.documents ?? []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Failed to load documents');
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -58,7 +75,7 @@ export default function DashboardOverview() {
       cancelled = true;
       window.removeEventListener("archive:documents-changed", handleDocumentsChanged);
     };
-  }, []);
+  }, [router]);
 
   const fmt = (n: number | null, decimals = 0) =>
     n === null ? "—" : n.toLocaleString(undefined, { maximumFractionDigits: decimals });
@@ -156,6 +173,18 @@ export default function DashboardOverview() {
           </div>
         ))}
       </div>
+
+      {loadError && (
+        <div className="border-4 border-destructive bg-destructive/5 p-4 flex items-center gap-3 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center bg-destructive">
+            <AlertTriangle className="h-5 w-5 text-destructive-foreground" />
+          </div>
+          <div>
+            <p className="font-headline font-black text-sm uppercase tracking-tighter">Documents Unavailable</p>
+            <p className="font-mono text-[9px] font-bold uppercase tracking-widest opacity-60">{loadError}</p>
+          </div>
+        </div>
+      )}
 
       {!isLoading && atDocumentLimit && (
         <div className="border-4 border-destructive bg-destructive/5 p-4 flex items-center justify-between gap-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
