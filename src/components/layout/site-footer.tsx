@@ -1,14 +1,25 @@
-"use client"
+"use client";
 
-import Link from 'next/link';
-import { Archive, ArrowRight, FileText, Github, Lock, Mail, ShieldCheck } from 'lucide-react';
-import { SITE } from '@/lib/site';
+import Link from "next/link";
+import {
+  Archive,
+  ArrowRight,
+  Building2,
+  FileText,
+  Github,
+  Globe2,
+  Linkedin,
+  Lock,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
+import { SITE } from "@/lib/site";
 
 const footerSections = [
   {
     title: "Product",
     links: [
-      { label: "Features", href: "/#system" },
+      { label: "Features", href: "/features" },
       { label: "Pricing", href: "/plans" },
       { label: "Dashboard", href: "/dashboard" },
       { label: "Sign in", href: "/auth" },
@@ -40,15 +51,26 @@ const trustItems = [
   { label: "Security review ready", icon: ShieldCheck },
 ];
 
+const builderLinks = [
+  { label: "GitHub", href: SITE.githubProfileUrl, icon: Github },
+  { label: "LinkedIn", href: SITE.founderLinkedInUrl, icon: Linkedin },
+  { label: "Portfolio", href: SITE.founderWebsiteUrl, icon: Globe2 },
+  { label: "Studio", href: SITE.studioUrl, icon: Building2 },
+];
+
 export function SiteFooter() {
   const currentYear = new Date().getFullYear();
 
   return (
     <footer className="bg-foreground text-background border-t-2 border-foreground px-6">
-      <div className="container mx-auto py-16 lg:py-20">
-        <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
-          <div className="lg:col-span-5 space-y-8">
-            <Link className="flex items-center gap-3 group w-fit" href="/" aria-label="The Archive.ai home">
+      <div className="container mx-auto py-12 lg:py-14">
+        <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
+          <div className="space-y-7 lg:col-span-5">
+            <Link
+              className="flex items-center gap-3 group w-fit"
+              href="/"
+              aria-label="The Archive.ai home"
+            >
               <div className="w-11 h-11 bg-primary text-foreground flex items-center justify-center transition-transform group-hover:-rotate-6">
                 <Archive className="h-6 w-6 text-foreground" />
               </div>
@@ -62,7 +84,8 @@ export function SiteFooter() {
                 Search your documents by asking real questions.
               </p>
               <p className="text-sm font-medium leading-relaxed text-background/65">
-                Upload PDFs, TXT files, and DOCX documents, then get cited answers from your private archive.
+                Upload PDFs, TXT files, and DOCX documents, then get cited
+                answers from your private archive.
               </p>
             </div>
 
@@ -90,7 +113,7 @@ export function SiteFooter() {
             </div>
           </div>
 
-          <div className="lg:col-span-7 grid gap-10 sm:grid-cols-3">
+          <div className="grid gap-8 border-y border-background/15 py-7 sm:grid-cols-3 lg:col-span-7 lg:border-y-0 lg:border-l lg:py-0 lg:pl-12">
             {footerSections.map((section) => (
               <div key={section.title} className="space-y-5">
                 <h4 className="font-mono text-[10px] font-bold uppercase tracking-[0.35em] text-background/40">
@@ -113,23 +136,71 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-14 grid gap-3 border-y border-background/15 py-5 sm:grid-cols-2 lg:grid-cols-4">
-          {trustItems.map((item) => (
-            <div key={item.label} className="flex items-center gap-3 text-xs font-bold uppercase tracking-tighter text-background/70">
-              <item.icon className="h-4 w-4 text-primary" />
-              <span>{item.label}</span>
+        <div className="mt-10 grid gap-5 border-y border-background/15 py-6 lg:grid-cols-12">
+          <div className="border-2 border-background/15 p-5 lg:col-span-5">
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.35em] text-background/40">
+              Built by
+            </p>
+            <p className="mt-3 text-xl font-headline font-black uppercase leading-none tracking-tighter">
+              {SITE.founderName}
+            </p>
+            <p className="mt-3 text-xs font-medium leading-relaxed text-background/55">
+              Open-source product work from the developer behind{" "}
+              {SITE.studioName}.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {builderLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-9 items-center justify-center gap-2 border border-background/20 px-3 text-[10px] font-black uppercase tracking-tighter text-background/75 transition-colors hover:border-primary hover:text-primary"
+                >
+                  <link.icon className="h-3.5 w-3.5" />
+                  {link.label}
+                </a>
+              ))}
             </div>
-          ))}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:col-span-7">
+            {trustItems.map((item) => (
+              <div
+                key={item.label}
+                className="flex min-h-16 items-center gap-3 border border-background/15 px-4 py-3 text-xs font-bold uppercase tracking-tighter text-background/70"
+              >
+                <item.icon className="h-4 w-4 shrink-0 text-primary" />
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="mt-8 flex flex-col gap-5 font-mono text-[10px] uppercase tracking-widest text-background/45 md:flex-row md:items-center md:justify-between">
-          <p>© {currentYear} {SITE.legalName}. Open source under MIT.</p>
+        <div className="mt-6 flex flex-col gap-5 font-mono text-[10px] uppercase tracking-widest text-background/45 md:flex-row md:items-center md:justify-between">
+          <p>
+            © {currentYear} {SITE.legalName}. Open source under MIT.
+          </p>
           <div className="flex flex-wrap gap-x-8 gap-y-2">
-            <a href={`mailto:${SITE.supportEmail}`} className="hover:text-primary transition-colors">
+            <a
+              href={`mailto:${SITE.supportEmail}`}
+              className="hover:text-primary transition-colors"
+            >
               {SITE.supportEmail}
             </a>
-            <a href={SITE.repositoryUrl} target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">
+            <a
+              href={SITE.repositoryUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-primary transition-colors"
+            >
               GitHub
+            </a>
+            <a
+              href={`mailto:${SITE.founderEmail}`}
+              className="hover:text-primary transition-colors"
+            >
+              Founder email
             </a>
             <span>{SITE.domain}</span>
             <span>Secure document intelligence</span>

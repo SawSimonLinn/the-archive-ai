@@ -4,8 +4,14 @@ import {
   ArrowRight,
   BookOpenCheck,
   BrainCircuit,
+  Building2,
+  Code2,
   FileSearch,
+  Github,
+  Globe2,
+  Linkedin,
   Lock,
+  Mail,
   ScanSearch,
   ShieldCheck,
 } from "lucide-react";
@@ -68,6 +74,14 @@ const audiences = [
   "Operators who need quick answers from internal reference material.",
   "Founders and teams reviewing contracts, reports, policies, and support docs.",
   "Students and professionals turning scattered files into a searchable library.",
+];
+
+const founderLinks = [
+  { label: "GitHub", href: SITE.githubProfileUrl, icon: Github },
+  { label: "LinkedIn", href: SITE.founderLinkedInUrl, icon: Linkedin },
+  { label: "Portfolio", href: SITE.founderWebsiteUrl, icon: Globe2 },
+  { label: "Studio", href: SITE.studioUrl, icon: Building2 },
+  { label: "Email", href: `mailto:${SITE.founderEmail}`, icon: Mail },
 ];
 
 export default function AboutPage() {
@@ -214,6 +228,49 @@ export default function AboutPage() {
                   <div key={audience} className="border-2 border-foreground bg-card p-5 text-sm font-black uppercase tracking-tight">
                     {audience}
                   </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t-2 border-foreground px-6 py-20">
+          <div className="container mx-auto grid gap-10 lg:grid-cols-12 lg:items-start">
+            <div className="lg:col-span-7">
+              <p className="font-mono text-xs font-bold uppercase tracking-[0.5em] text-primary">
+                Who builds it
+              </p>
+              <h2 className="mt-5 text-4xl font-headline font-black uppercase leading-none tracking-tighter sm:text-5xl">
+                Built by a visible developer.
+              </h2>
+              <p className="mt-6 max-w-2xl text-base font-medium leading-relaxed text-muted-foreground sm:text-lg">
+                The Archive.ai is an open-source document intelligence product built by {SITE.founderName}, the developer behind {SITE.studioName}. The product stays focused on practical workflows, inspectable source code, and direct contact.
+              </p>
+            </div>
+
+            <div className="lg:col-span-5 border-4 border-foreground bg-card p-8 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
+              <Code2 className="h-10 w-10 text-primary" />
+              <p className="mt-6 font-mono text-[10px] font-black uppercase tracking-[0.35em] text-muted-foreground">
+                Founder / builder
+              </p>
+              <h3 className="mt-3 text-3xl font-headline font-black uppercase leading-none tracking-tighter">
+                {SITE.founderName}
+              </h3>
+              <p className="mt-4 text-sm font-medium leading-relaxed text-muted-foreground">
+                Independent software builder focused on useful AI products, web systems, and private document workflows.
+              </p>
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                {founderLinks.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    target={link.href.startsWith("mailto:") ? undefined : "_blank"}
+                    rel={link.href.startsWith("mailto:") ? undefined : "noreferrer"}
+                    className="inline-flex h-12 items-center justify-center gap-2 border-2 border-foreground px-4 text-xs font-black uppercase tracking-tighter transition-colors hover:bg-primary"
+                  >
+                    <link.icon className="h-4 w-4" />
+                    {link.label}
+                  </a>
                 ))}
               </div>
             </div>

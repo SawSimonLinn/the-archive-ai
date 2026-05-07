@@ -4,6 +4,13 @@ export const SITE = {
   url: "https://thearchiveai.xyz",
   domain: "thearchiveai.xyz",
   repositoryUrl: "https://github.com/SawSimonLinn/the-archive-ai",
+  githubProfileUrl: "https://github.com/SawSimonLinn",
+  founderName: "Saw Simon Linn",
+  founderEmail: "sawsimonlinn@gmail.com",
+  founderLinkedInUrl: "https://www.linkedin.com/in/sawsimonlinn/",
+  founderWebsiteUrl: "https://simonlinn.dev/",
+  studioName: "CodeHeaven Studio",
+  studioUrl: "https://www.codeheavenstudio.com/",
   supportEmail: "support@thearchiveai.xyz",
   policyUpdatedAt: "May 7, 2026",
 } as const;

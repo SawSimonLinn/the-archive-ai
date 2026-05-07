@@ -4,9 +4,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
-  title: "AI Knowledge Assistant | RAG Document Analysis",
+  title: "The Archive.ai | Private Document Intelligence",
   description:
-    "Upload your documents and ask questions using Retrieval-Augmented Generation.",
+    "Turn PDFs, docs, and notes into a private searchable archive with source-cited AI answers.",
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg",

@@ -41,7 +41,7 @@ export function SiteHeader() {
           <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/about">
             About
           </Link>
-          <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/#system">
+          <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/features">
             Features
           </Link>
           <Link className="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors" href="/plans">
